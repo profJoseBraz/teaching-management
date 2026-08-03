@@ -1,0 +1,31 @@
+---
+description: Diretrizes de UI/UX Material Design 3
+globs: frontend/**/*
+alwaysApply: false
+---
+
+# UI/UX
+
+Material Design 3.
+
+Design limpo.
+
+Poucas cores.
+
+Espaçamento consistente.
+
+Componentes reutilizáveis.
+
+Ícones Material.
+
+Animações suaves.
+
+Snackbars.
+
+Dialogs.
+
+Bottom Sheets.
+
+Tema Dark.
+
+Tema Light.

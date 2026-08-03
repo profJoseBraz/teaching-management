@@ -1,0 +1,35 @@
+---
+description: Padrões de testes backend e frontend
+globs: "**/{tests,test}/**/*"
+alwaysApply: false
+---
+
+# Testing
+
+Toda feature deve possuir testes.
+
+Backend
+
+UseCases
+
+Repositories
+
+Controllers
+
+Validators
+
+Frontend
+
+Providers
+
+Repositories
+
+Services
+
+UseCases
+
+Widgets principais
+
+Utilizar mocks.
+
+Buscar cobertura elevada.

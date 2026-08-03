@@ -1,0 +1,57 @@
+---
+description: Padrões e stack do frontend Flutter/Riverpod
+globs: frontend/**/*
+alwaysApply: false
+---
+
+# Frontend
+
+Sempre utilizar:
+
+Flutter
+
+Riverpod
+
+Dio
+
+Material 3
+
+Responsive Layout
+
+A UI nunca acessa APIs.
+
+Tela
+
+↓
+
+Provider
+
+↓
+
+UseCase
+
+↓
+
+Repository
+
+↓
+
+Datasource
+
+↓
+
+API
+
+Toda tela deve possuir:
+
+Loading
+
+Erro
+
+Empty State
+
+Sucesso
+
+Tema Claro
+
+Tema Escuro

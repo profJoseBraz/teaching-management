@@ -1,0 +1,25 @@
+---
+description: Padrões de banco PostgreSQL e Prisma
+globs: backend/prisma/**/*
+alwaysApply: false
+---
+
+# Database
+
+Sempre utilizar PostgreSQL.
+
+Utilizar Prisma.
+
+Criar migrations.
+
+Criar seeds.
+
+Toda FK deve possuir índice.
+
+Evitar redundância.
+
+Aplicar normalização.
+
+Criar constraints.
+
+Utilizar soft delete quando fizer sentido.

@@ -1,0 +1,43 @@
+---
+description: Padrões e stack do backend Node/Express/TypeScript
+globs: backend/**/*
+alwaysApply: false
+---
+
+# Backend
+
+Sempre utilizar:
+
+Node
+
+Express
+
+TypeScript
+
+Prisma
+
+JWT
+
+Zod
+
+Repository Pattern
+
+Dependency Injection
+
+Use Cases
+
+DTOs
+
+Middleware
+
+Swagger
+
+Nunca colocar lógica de negócio nos Controllers.
+
+Nunca acessar Prisma diretamente nos Controllers.
+
+Sempre criar interfaces.
+
+Sempre criar testes.
+
+Toda API deve ser REST.

@@ -1,0 +1,34 @@
+---
+description: Clean Architecture — fluxo de dependências e responsabilidades das camadas
+alwaysApply: true
+---
+
+# Clean Architecture
+
+Toda funcionalidade deve respeitar:
+
+Presentation
+
+↓
+
+Application
+
+↓
+
+Domain
+
+↓
+
+Infrastructure
+
+A camada externa depende da interna.
+
+Nunca inverter esse fluxo.
+
+Controllers nunca possuem regra de negócio.
+
+UseCases nunca acessam banco diretamente.
+
+Repositories são interfaces.
+
+Implementações ficam na Infrastructure.

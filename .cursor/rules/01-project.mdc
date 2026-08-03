@@ -1,0 +1,26 @@
+---
+description: Princípios gerais do projeto FoodExpress — qualidade, SOLID e Clean Code
+alwaysApply: true
+---
+
+# Projeto
+
+Este projeto é uma referência de Engenharia de Software.
+
+Todo código deve priorizar:
+
+- Legibilidade
+- Manutenibilidade
+- Escalabilidade
+- Desacoplamento
+- Reutilização
+
+Nunca gerar código apenas para funcionar.
+
+Sempre preferir qualidade à velocidade.
+
+Sempre seguir SOLID.
+
+Sempre seguir Clean Code.
+
+Sempre documentar decisões importantes.

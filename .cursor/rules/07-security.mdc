@@ -1,0 +1,29 @@
+---
+description: Regras de segurança da API e autenticação
+globs: backend/**/*
+alwaysApply: false
+---
+
+# Security
+
+Sempre utilizar:
+
+JWT
+
+bcrypt
+
+Helmet
+
+Cors
+
+Rate Limit
+
+Sanitização
+
+Validação
+
+Nunca confiar em dados vindos do cliente.
+
+Nunca expor stacktrace.
+
+Nunca armazenar senha em texto puro.

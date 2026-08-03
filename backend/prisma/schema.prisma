@@ -1,0 +1,514 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  PROFESSOR
+  ADMIN
+  COORDINATOR
+  SECRETARY
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String    @db.VarChar(120)
+  email        String    @unique @db.VarChar(180)
+  passwordHash String    @map("password_hash")
+  role         UserRole  @default(PROFESSOR)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  academicYears      AcademicYear[]
+  courses            Course[]
+  disciplines        Discipline[]
+  courseDisciplines  CourseDiscipline[]
+  classDisciplines   ClassDiscipline[]
+  assessmentPeriods  AssessmentPeriod[]
+  classes            Class[]
+  students           Student[]
+  enrollments        Enrollment[]
+  lessons            Lesson[]
+  contents           Content[]
+  attendances        Attendance[]
+  activities         Activity[]
+  activityGroups     ActivityGroup[]
+  submissions        Submission[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Academic structure
+// ---------------------------------------------------------------------------
+
+model AcademicYear {
+  id        String    @id @default(uuid()) @db.Uuid
+  teacherId String    @map("teacher_id") @db.Uuid
+  year      Int
+  label     String?   @db.VarChar(80)
+  isCurrent Boolean   @default(false) @map("is_current")
+  startsOn  DateTime? @map("starts_on") @db.Date
+  endsOn    DateTime? @map("ends_on") @db.Date
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  teacher           User               @relation(fields: [teacherId], references: [id])
+  assessmentPeriods AssessmentPeriod[]
+  classes           Class[]
+
+  @@unique([teacherId, year])
+  @@index([teacherId])
+  @@index([teacherId, isCurrent])
+  @@map("academic_years")
+}
+
+model Course {
+  id          String    @id @default(uuid()) @db.Uuid
+  teacherId   String    @map("teacher_id") @db.Uuid
+  name        String    @db.VarChar(160)
+  description String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  teacher           User               @relation(fields: [teacherId], references: [id])
+  courseDisciplines CourseDiscipline[]
+  classes           Class[]
+
+  @@unique([teacherId, name])
+  @@index([teacherId])
+  @@map("courses")
+}
+
+model Discipline {
+  id          String    @id @default(uuid()) @db.Uuid
+  teacherId   String    @map("teacher_id") @db.Uuid
+  name        String    @db.VarChar(160)
+  description String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  teacher           User               @relation(fields: [teacherId], references: [id])
+  courseDisciplines CourseDiscipline[]
+  classDisciplines  ClassDiscipline[]
+  lessons           Lesson[]
+  contents          Content[]
+  activities        Activity[]
+
+  @@unique([teacherId, name])
+  @@index([teacherId])
+  @@map("disciplines")
+}
+
+model CourseDiscipline {
+  id           String    @id @default(uuid()) @db.Uuid
+  teacherId    String    @map("teacher_id") @db.Uuid
+  courseId     String    @map("course_id") @db.Uuid
+  disciplineId String    @map("discipline_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  teacher    User       @relation(fields: [teacherId], references: [id])
+  course     Course     @relation(fields: [courseId], references: [id])
+  discipline Discipline @relation(fields: [disciplineId], references: [id])
+
+  @@unique([courseId, disciplineId])
+  @@index([teacherId])
+  @@index([courseId])
+  @@index([disciplineId])
+  @@map("course_disciplines")
+}
+
+model AssessmentPeriod {
+  id             String    @id @default(uuid()) @db.Uuid
+  teacherId      String    @map("teacher_id") @db.Uuid
+  academicYearId String    @map("academic_year_id") @db.Uuid
+  /// Extensão futura: override por turma (null = período do ano)
+  classId        String?   @map("class_id") @db.Uuid
+  name           String    @db.VarChar(80)
+  sortOrder      Int       @map("sort_order")
+  startsOn       DateTime? @map("starts_on") @db.Date
+  endsOn         DateTime? @map("ends_on") @db.Date
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  teacher      User         @relation(fields: [teacherId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  class        Class?       @relation(fields: [classId], references: [id])
+  activities   Activity[]
+
+  @@index([teacherId])
+  @@index([academicYearId])
+  @@index([classId])
+  @@index([teacherId, academicYearId, sortOrder])
+  @@map("assessment_periods")
+}
+
+// ---------------------------------------------------------------------------
+// Classes & students
+// ---------------------------------------------------------------------------
+
+enum Shift {
+  MORNING
+  AFTERNOON
+  EVENING
+  NIGHT
+}
+
+enum ClassStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Class {
+  id             String      @id @default(uuid()) @db.Uuid
+  teacherId      String      @map("teacher_id") @db.Uuid
+  academicYearId String      @map("academic_year_id") @db.Uuid
+  courseId       String      @map("course_id") @db.Uuid
+  name           String      @db.VarChar(120)
+  shift          Shift?
+  status         ClassStatus @default(ACTIVE)
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  deletedAt      DateTime?   @map("deleted_at")
+
+  teacher           User               @relation(fields: [teacherId], references: [id])
+  academicYear      AcademicYear        @relation(fields: [academicYearId], references: [id])
+  course            Course             @relation(fields: [courseId], references: [id])
+  classDisciplines  ClassDiscipline[]
+  enrollments       Enrollment[]
+  lessons           Lesson[]
+  contents          Content[]
+  activities        Activity[]
+  assessmentPeriods AssessmentPeriod[]
+
+  @@unique([teacherId, academicYearId, courseId, name])
+  @@index([teacherId])
+  @@index([academicYearId])
+  @@index([courseId])
+  @@index([teacherId, status])
+  @@map("classes")
+}
+
+/// Vínculo N:N entre turma e disciplinas ministradas nela.
+model ClassDiscipline {
+  id           String    @id @default(uuid()) @db.Uuid
+  teacherId    String    @map("teacher_id") @db.Uuid
+  classId      String    @map("class_id") @db.Uuid
+  disciplineId String    @map("discipline_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  teacher    User       @relation(fields: [teacherId], references: [id])
+  class      Class      @relation(fields: [classId], references: [id])
+  discipline Discipline @relation(fields: [disciplineId], references: [id])
+
+  @@unique([classId, disciplineId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([disciplineId])
+  @@map("class_disciplines")
+}
+
+model Student {
+  id           String    @id @default(uuid()) @db.Uuid
+  teacherId    String    @map("teacher_id") @db.Uuid
+  name         String    @db.VarChar(160)
+  registryCode String?   @map("registry_code") @db.VarChar(60)
+  email        String?   @db.VarChar(180)
+  phone        String?   @db.VarChar(40)
+  notes        String?   @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  teacher              User                  @relation(fields: [teacherId], references: [id])
+  enrollments          Enrollment[]
+  attendances          Attendance[]
+  submissions          Submission[]
+  activityGroupMembers ActivityGroupMember[]
+
+  @@index([teacherId])
+  @@index([teacherId, name])
+  @@map("students")
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  WITHDRAWN
+}
+
+model Enrollment {
+  id        String           @id @default(uuid()) @db.Uuid
+  teacherId String           @map("teacher_id") @db.Uuid
+  classId   String           @map("class_id") @db.Uuid
+  studentId String           @map("student_id") @db.Uuid
+  status    EnrollmentStatus @default(ACTIVE)
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+  deletedAt DateTime?        @map("deleted_at")
+
+  teacher User    @relation(fields: [teacherId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([classId, studentId])
+  @@index([teacherId])
+  @@index([classId, status])
+  @@index([studentId])
+  @@map("enrollments")
+}
+
+// ---------------------------------------------------------------------------
+// Lessons & contents
+// ---------------------------------------------------------------------------
+
+model Lesson {
+  id                  String    @id @default(uuid()) @db.Uuid
+  teacherId           String    @map("teacher_id") @db.Uuid
+  classId             String    @map("class_id") @db.Uuid
+  disciplineId        String    @map("discipline_id") @db.Uuid
+  date                DateTime  @db.Date
+  startTime           String    @map("start_time") @db.VarChar(5)
+  endTime             String    @map("end_time") @db.VarChar(5)
+  observations        String?   @db.Text
+  attendanceCompleted Boolean   @default(false) @map("attendance_completed")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  deletedAt           DateTime? @map("deleted_at")
+
+  teacher        User            @relation(fields: [teacherId], references: [id])
+  class          Class           @relation(fields: [classId], references: [id])
+  discipline     Discipline      @relation(fields: [disciplineId], references: [id])
+  attendances    Attendance[]
+  lessonContents LessonContent[]
+  activities     Activity[]
+
+  @@index([teacherId])
+  @@index([classId, date])
+  @@index([classId, disciplineId])
+  @@index([disciplineId])
+  @@index([teacherId, attendanceCompleted, date])
+  @@map("lessons")
+}
+
+enum ContentStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Content {
+  id           String        @id @default(uuid()) @db.Uuid
+  teacherId    String        @map("teacher_id") @db.Uuid
+  classId      String        @map("class_id") @db.Uuid
+  disciplineId String        @map("discipline_id") @db.Uuid
+  title        String        @db.VarChar(200)
+  description  String?       @db.Text
+  status       ContentStatus @default(IN_PROGRESS)
+  startedAt    DateTime      @default(now()) @map("started_at")
+  completedAt  DateTime?     @map("completed_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  deletedAt    DateTime?     @map("deleted_at")
+
+  teacher        User            @relation(fields: [teacherId], references: [id])
+  class          Class           @relation(fields: [classId], references: [id])
+  discipline     Discipline      @relation(fields: [disciplineId], references: [id])
+  lessonContents LessonContent[]
+
+  @@index([teacherId])
+  @@index([classId])
+  @@index([classId, disciplineId])
+  @@index([disciplineId])
+  @@index([teacherId, status, classId])
+  @@map("contents")
+}
+
+model LessonContent {
+  id        String   @id @default(uuid()) @db.Uuid
+  lessonId  String   @map("lesson_id") @db.Uuid
+  contentId String   @map("content_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lesson  Lesson  @relation(fields: [lessonId], references: [id])
+  content Content @relation(fields: [contentId], references: [id])
+
+  @@unique([lessonId, contentId])
+  @@index([lessonId])
+  @@index([contentId])
+  @@map("lesson_contents")
+}
+
+// ---------------------------------------------------------------------------
+// Attendance
+// ---------------------------------------------------------------------------
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+}
+
+model Attendance {
+  id           String           @id @default(uuid()) @db.Uuid
+  teacherId    String           @map("teacher_id") @db.Uuid
+  lessonId     String           @map("lesson_id") @db.Uuid
+  studentId    String           @map("student_id") @db.Uuid
+  status       AttendanceStatus
+  observations String?          @db.Text
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  teacher User    @relation(fields: [teacherId], references: [id])
+  lesson  Lesson  @relation(fields: [lessonId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([lessonId, studentId])
+  @@index([teacherId])
+  @@index([lessonId, status])
+  @@index([studentId, status])
+  @@map("attendances")
+}
+
+// ---------------------------------------------------------------------------
+// Activities
+// ---------------------------------------------------------------------------
+
+enum ActivityCategory {
+  EXERCISE
+  ASSIGNMENT
+  PROJECT
+  RESEARCH
+  SEMINAR
+  EXAM
+  OTHER
+}
+
+enum ActivityMode {
+  INDIVIDUAL
+  GROUP
+}
+
+enum ActivityGradeMode {
+  SHARED
+  INDIVIDUAL
+}
+
+model Activity {
+  id                 String             @id @default(uuid()) @db.Uuid
+  teacherId          String             @map("teacher_id") @db.Uuid
+  classId            String             @map("class_id") @db.Uuid
+  disciplineId       String             @map("discipline_id") @db.Uuid
+  originLessonId     String             @map("origin_lesson_id") @db.Uuid
+  assessmentPeriodId String?            @map("assessment_period_id") @db.Uuid
+  title              String             @db.VarChar(200)
+  description        String?            @db.Text
+  category           ActivityCategory   @default(ASSIGNMENT)
+  mode               ActivityMode       @default(INDIVIDUAL)
+  gradeMode          ActivityGradeMode  @default(INDIVIDUAL) @map("grade_mode")
+  maxScore           Decimal            @default(100) @map("max_score") @db.Decimal(6, 2)
+  createdOn          DateTime           @default(now()) @map("created_on") @db.Date
+  dueDate            DateTime           @map("due_date") @db.Date
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  deletedAt          DateTime?          @map("deleted_at")
+
+  teacher          User              @relation(fields: [teacherId], references: [id])
+  class            Class             @relation(fields: [classId], references: [id])
+  discipline       Discipline        @relation(fields: [disciplineId], references: [id])
+  originLesson     Lesson            @relation(fields: [originLessonId], references: [id])
+  assessmentPeriod AssessmentPeriod? @relation(fields: [assessmentPeriodId], references: [id])
+  groups           ActivityGroup[]
+  submissions      Submission[]
+
+  @@index([teacherId])
+  @@index([classId])
+  @@index([classId, disciplineId])
+  @@index([disciplineId])
+  @@index([originLessonId])
+  @@index([assessmentPeriodId])
+  @@index([teacherId, dueDate, classId])
+  @@map("activities")
+}
+
+model ActivityGroup {
+  id         String    @id @default(uuid()) @db.Uuid
+  teacherId  String    @map("teacher_id") @db.Uuid
+  activityId String    @map("activity_id") @db.Uuid
+  name       String    @db.VarChar(120)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  teacher     User                  @relation(fields: [teacherId], references: [id])
+  activity    Activity              @relation(fields: [activityId], references: [id])
+  members     ActivityGroupMember[]
+  submissions Submission[]
+
+  @@index([teacherId])
+  @@index([activityId])
+  @@map("activity_groups")
+}
+
+model ActivityGroupMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  groupId   String   @map("group_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  group   ActivityGroup @relation(fields: [groupId], references: [id])
+  student Student       @relation(fields: [studentId], references: [id])
+
+  @@unique([groupId, studentId])
+  @@index([groupId])
+  @@index([studentId])
+  @@map("activity_group_members")
+}
+
+enum SubmissionStatus {
+  PENDING
+  SUBMITTED
+  GRADED
+}
+
+model Submission {
+  id           String           @id @default(uuid()) @db.Uuid
+  teacherId    String           @map("teacher_id") @db.Uuid
+  activityId   String           @map("activity_id") @db.Uuid
+  studentId    String           @map("student_id") @db.Uuid
+  groupId      String?          @map("group_id") @db.Uuid
+  status       SubmissionStatus @default(PENDING)
+  score        Decimal?         @db.Decimal(6, 2)
+  observations String?          @db.Text
+  submittedAt  DateTime?        @map("submitted_at")
+  gradedAt     DateTime?        @map("graded_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+  deletedAt    DateTime?        @map("deleted_at")
+
+  teacher  User           @relation(fields: [teacherId], references: [id])
+  activity Activity       @relation(fields: [activityId], references: [id])
+  student  Student        @relation(fields: [studentId], references: [id])
+  group    ActivityGroup? @relation(fields: [groupId], references: [id])
+
+  @@unique([activityId, studentId])
+  @@index([teacherId])
+  @@index([activityId, status])
+  @@index([studentId])
+  @@index([groupId])
+  @@map("submissions")
+}

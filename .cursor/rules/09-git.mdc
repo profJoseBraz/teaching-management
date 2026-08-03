@@ -1,0 +1,26 @@
+---
+description: Convenções de Git e Conventional Commits
+alwaysApply: true
+---
+
+# Git
+
+Utilizar Conventional Commits.
+
+feat:
+
+fix:
+
+refactor:
+
+test:
+
+docs:
+
+style:
+
+ci:
+
+Nunca realizar commits gigantes.
+
+Cada commit deve representar uma única mudança.

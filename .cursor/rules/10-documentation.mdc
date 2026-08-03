@@ -1,0 +1,20 @@
+---
+description: Regras de documentação do projeto
+alwaysApply: true
+---
+
+# Documentation
+
+Toda feature deve atualizar:
+
+README
+
+Swagger
+
+Diagramas (quando necessário)
+
+Variáveis de ambiente
+
+Fluxos
+
+Arquitetura

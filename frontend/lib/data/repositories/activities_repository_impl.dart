@@ -1,0 +1,91 @@
+import '../../domain/entities/activity.dart';
+import '../../domain/entities/activity_detail.dart';
+import '../../domain/entities/activity_group.dart';
+import '../../domain/entities/submission.dart';
+import '../../domain/repositories/activities_repository.dart';
+import '../datasources/activities_datasource.dart';
+
+class ActivitiesRepositoryImpl implements ActivitiesRepository {
+  ActivitiesRepositoryImpl(this._datasource);
+
+  final ActivitiesDatasource _datasource;
+
+  @override
+  Future<List<Activity>> getActivities(String classId, {String? disciplineId}) =>
+      _datasource.getActivities(classId, disciplineId: disciplineId);
+
+  @override
+  Future<ActivityDetail> getActivity(String id) => _datasource.getActivity(id);
+
+  @override
+  Future<Activity> createActivity(
+    String classId, {
+    required String originLessonId,
+    String? disciplineId,
+    String? assessmentPeriodId,
+    required String title,
+    String? description,
+    String category = 'ASSIGNMENT',
+    String mode = 'INDIVIDUAL',
+    String gradeMode = 'INDIVIDUAL',
+    double maxScore = 100,
+    required DateTime dueDate,
+  }) =>
+      _datasource.createActivity(
+        classId,
+        originLessonId: originLessonId,
+        disciplineId: disciplineId,
+        assessmentPeriodId: assessmentPeriodId,
+        title: title,
+        description: description,
+        category: category,
+        mode: mode,
+        gradeMode: gradeMode,
+        maxScore: maxScore,
+        dueDate: dueDate,
+      );
+
+  @override
+  Future<Activity> updateActivity(
+    String id, {
+    String? title,
+    String? description,
+    String? category,
+    double? maxScore,
+    DateTime? dueDate,
+  }) =>
+      _datasource.updateActivity(
+        id,
+        title: title,
+        description: description,
+        category: category,
+        maxScore: maxScore,
+        dueDate: dueDate,
+      );
+
+  @override
+  Future<List<ActivityGroup>> createGroups(
+    String activityId,
+    List<({String name, List<String> studentIds})> groups,
+  ) =>
+      _datasource.createGroups(activityId, groups);
+
+  @override
+  Future<List<Submission>> getSubmissions(String activityId) => _datasource.getSubmissions(activityId);
+
+  @override
+  Future<Submission> markSubmitted(String submissionId) => _datasource.markSubmitted(submissionId);
+
+  @override
+  Future<Submission> gradeSubmission(String submissionId, {required double score, String? observations}) =>
+      _datasource.gradeSubmission(submissionId, score: score, observations: observations);
+
+  @override
+  Future<List<Submission>> gradeShared(
+    String activityId,
+    String groupId, {
+    required double score,
+    String? observations,
+  }) =>
+      _datasource.gradeShared(activityId, groupId, score: score, observations: observations);
+}
