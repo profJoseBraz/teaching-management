@@ -59,6 +59,10 @@ export const enrollStudentSchema = z.object({
   studentId: z.uuid(),
 });
 
+export const bulkEnrollStudentsSchema = z.object({
+  studentIds: z.array(z.uuid()).min(1).max(500),
+});
+
 export const linkDisciplineToClassSchema = z.object({
   disciplineId: z.uuid(),
 });

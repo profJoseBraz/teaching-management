@@ -17,11 +17,15 @@ abstract interface class ClassesRepository {
     required String name,
     String? shift,
   });
-  Future<SchoolClass> updateClass(String id, {String? name, String? shift});
+  Future<SchoolClass> updateClass(String id, {required String name, String? shift});
   Future<SchoolClass> archiveClass(String id);
 
   Future<List<Enrollment>> getEnrollments(String classId);
   Future<Enrollment> enrollStudent(String classId, String studentId);
+  Future<({int totalEnrolled, int skipped})> bulkEnrollStudents(
+    String classId,
+    List<String> studentIds,
+  );
   Future<void> unenrollStudent(String classId, String studentId);
 
   Future<List<Discipline>> getClassDisciplines(String classId);

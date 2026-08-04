@@ -47,6 +47,11 @@ ids existentes do ano letivo, sem repetição).
 ### Students (`src/modules/students`)
 
 - `GET /students?search=` · `POST /students`
+- `POST /students/bulk` — cadastro em lote a partir de texto colado (`{ "text": "..." }`)
+  - Aceita um nome por linha **ou** registros com Matrícula/Nome/E-mail/Telefone/Obs
+  - Separadores: tab, `;` ou `,` — com ou sem cabeçalho (`Matrícula;Nome;E-mail`)
+  - Ordem posicional (sem cabeçalho): `Matrícula;Nome;E-mail;Telefone;Obs`
+  - Resposta: `{ created, skipped, totalParsed, totalCreated }`
 - `GET/PATCH/DELETE /students/{id}` (`DELETE` = soft delete)
 
 ### Classes & Enrollments (`src/modules/classes`)
@@ -55,9 +60,10 @@ ids existentes do ano letivo, sem repetição).
 - `GET/PATCH /classes/{id}`
 - `POST /classes/{id}/archive` — define `status=ARCHIVED` preservando histórico
 - `GET /classes/{classId}/enrollments` · `POST /classes/{classId}/enrollments` (body `{ studentId }`)
+- `POST /classes/{classId}/enrollments/bulk` (body `{ studentIds: string[] }`) — matricula vários alunos de uma vez; já matriculados ou inexistentes vão em `skipped`
 - `DELETE /classes/{classId}/enrollments/{studentId}` — define `status=WITHDRAWN` (não remove o histórico)
 - `GET /classes/{classId}/disciplines` — lista disciplinas vinculadas à turma (`ClassDiscipline`)
-- `POST /classes/{classId}/disciplines` (body `{ disciplineId }`) — vincula disciplina adicional à turma
+- `POST /classes/{classId}/disciplines` (body `{ disciplineId }`) — vincula disciplina adicional à turma (deve estar na grade do curso)
 - `DELETE /classes/{classId}/disciplines/{disciplineId}` — desvincula (soft delete do vínculo)
 
 **Decisão de design:** uma turma ministra **N disciplinas** simultaneamente via `ClassDiscipline`
@@ -66,10 +72,11 @@ ids existentes do ano letivo, sem repetição).
 é aceito por compatibilidade e normalizado em `disciplineIds`. As respostas de `Create/Get/List/Update/
 Archive Class` incluem `disciplineIds` e um resumo `disciplines: { id, name }[]`.
 
-Regras de domínio: `CreateClass` valida que ano letivo, curso e todas as disciplinas pertencem ao
-professor autenticado; `(teacherId, academicYearId, courseId, name)` é único; `?disciplineId=` em
-`GET /classes` filtra turmas com vínculo ativo àquela disciplina (`classDisciplines.some`); `EnrollStudent`
-reativa matrícula `WITHDRAWN` existente em vez de duplicá-la.
+Regras de domínio: `CreateClass` / `LinkDisciplineToClass` exigem que cada disciplina esteja na grade
+do curso (`CourseDiscipline` ativo); ano letivo, curso e disciplinas pertencem ao professor autenticado;
+`(teacherId, academicYearId, courseId, name)` é único; `?disciplineId=` em `GET /classes` filtra turmas
+com vínculo ativo àquela disciplina (`classDisciplines.some`); `EnrollStudent` reativa matrícula
+`WITHDRAWN` existente em vez de duplicá-la.
 
 ### Lessons (`src/modules/lessons`)
 

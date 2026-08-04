@@ -81,10 +81,10 @@ class ClassesDatasource {
     return schoolClassFromJson(response['data'] as Map<String, dynamic>);
   }
 
-  Future<SchoolClass> updateClass(String id, {String? name, String? shift}) async {
+  Future<SchoolClass> updateClass(String id, {required String name, String? shift}) async {
     final response = await _apiClient.patch('/classes/$id', data: {
-      if (name != null) 'name': name,
-      if (shift != null) 'shift': shift,
+      'name': name,
+      'shift': shift,
     });
     return schoolClassFromJson(response['data'] as Map<String, dynamic>);
   }
@@ -105,6 +105,22 @@ class ClassesDatasource {
       data: {'studentId': studentId},
     );
     return enrollmentFromJson(response['data'] as Map<String, dynamic>);
+  }
+
+  Future<({int totalEnrolled, int skipped})> bulkEnrollStudents(
+    String classId,
+    List<String> studentIds,
+  ) async {
+    final response = await _apiClient.post(
+      '/classes/$classId/enrollments/bulk',
+      data: {'studentIds': studentIds},
+    );
+    final data = response['data'] as Map<String, dynamic>;
+    final skipped = (data['skipped'] as List? ?? []).length;
+    return (
+      totalEnrolled: data['totalEnrolled'] as int? ?? 0,
+      skipped: skipped,
+    );
   }
 
   Future<void> unenrollStudent(String classId, String studentId) =>

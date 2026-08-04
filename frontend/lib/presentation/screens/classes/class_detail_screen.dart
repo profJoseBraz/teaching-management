@@ -6,11 +6,9 @@ import 'package:intl/intl.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/widgets/async_value_widget.dart';
 import '../../../core/widgets/status_chip.dart';
-import '../../../domain/entities/discipline.dart';
 import '../../../domain/entities/enrollment.dart';
 import '../../../domain/entities/lesson.dart';
 import '../../../domain/entities/school_class.dart';
-import '../../../domain/entities/student.dart';
 import '../../providers/academic_providers.dart';
 import '../../providers/classes_providers.dart';
 import '../../providers/lessons_providers.dart';
@@ -76,26 +74,31 @@ class _ClassDetailScreenState extends ConsumerState<ClassDetailScreen> with Sing
     return Scaffold(
       appBar: AppBar(
         title: classAsync.when(
+          skipLoadingOnReload: true,
+          skipLoadingOnRefresh: true,
           data: (klass) => Text(klass.name),
           loading: () => const Text('Carregando…'),
           error: (_, _) => const Text('Turma'),
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Editar turma',
+            onPressed: schoolClass == null ? null : () => _openEditClassDialog(context, schoolClass),
+          ),
+          IconButton(
             icon: const Icon(Icons.menu_book_outlined),
             tooltip: 'Disciplinas da turma',
             onPressed: schoolClass == null ? null : () => _openManageDisciplinesDialog(context, schoolClass),
           ),
-          classAsync.maybeWhen(
-            data: (klass) => klass.isActive
+          if (schoolClass != null)
+            schoolClass.isActive
                 ? IconButton(
                     icon: const Icon(Icons.archive_outlined),
                     tooltip: 'Arquivar turma',
                     onPressed: () => _confirmArchive(context),
                   )
-                : StatusChip.classStatus(klass.status),
-            orElse: () => const SizedBox.shrink(),
-          ),
+                : StatusChip.classStatus(schoolClass.status),
           const SizedBox(width: 12),
         ],
         bottom: TabBar(
@@ -147,6 +150,34 @@ class _ClassDetailScreenState extends ConsumerState<ClassDetailScreen> with Sing
     );
   }
 
+  Future<void> _openEditClassDialog(BuildContext context, SchoolClass schoolClass) async {
+    final result = await showDialog<({String name, String? shift})>(
+      context: context,
+      builder: (dialogContext) => _EditClassDialog(schoolClass: schoolClass),
+    );
+
+    if (result == null || !context.mounted) return;
+
+    try {
+      await ref.read(classesActionsProvider).update(
+            widget.classId,
+            name: result.name,
+            shift: result.shift,
+          );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Turma atualizada.')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao atualizar turma: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _confirmArchive(BuildContext context) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -165,37 +196,86 @@ class _ClassDetailScreenState extends ConsumerState<ClassDetailScreen> with Sing
   }
 
   Future<void> _openManageDisciplinesDialog(BuildContext context, SchoolClass schoolClass) async {
-    final allDisciplines = ref.read(disciplinesProvider).valueOrNull ?? const <Discipline>[];
-    if (allDisciplines.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cadastre disciplinas em Configurações primeiro.')),
-      );
-      return;
-    }
-
     await showDialog<void>(
       context: context,
       builder: (context) => Consumer(
         builder: (context, dialogRef, _) {
           final currentAsync = dialogRef.watch(classDetailProvider(widget.classId));
+          final courseLinksAsync = dialogRef.watch(courseDisciplinesProvider(schoolClass.courseId));
           final linkedIds = currentAsync.valueOrNull?.disciplineIds.toSet() ?? schoolClass.disciplineIds.toSet();
+          final colorScheme = Theme.of(context).colorScheme;
 
           return AlertDialog(
             title: Text('Disciplinas de ${schoolClass.name}'),
             content: SizedBox(
               width: 360,
               height: 320,
-              child: ListView(
-                shrinkWrap: true,
-                children: allDisciplines
-                    .map(
-                      (d) => CheckboxListTile(
-                        value: linkedIds.contains(d.id),
-                        title: Text(d.name),
-                        onChanged: (checked) => _toggleDiscipline(context, d.id, checked == true, linkedIds.length),
+              child: courseLinksAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (_, _) => Center(
+                  child: Text(
+                    'Não foi possível carregar a grade do curso.',
+                    style: TextStyle(color: colorScheme.error),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                data: (courseLinks) {
+                  // Grade do curso + disciplinas já na turma (legado fora da grade).
+                  final byId = <String, String>{
+                    for (final link in courseLinks)
+                      link.disciplineId: link.discipline?.name ?? 'Disciplina',
+                    for (final d in schoolClass.disciplines) d.id: d.name,
+                  };
+                  final courseIds = courseLinks.map((l) => l.disciplineId).toSet();
+                  final orderedIds = [
+                    ...courseLinks.map((l) => l.disciplineId),
+                    ...linkedIds.where((id) => !courseIds.contains(id)),
+                  ];
+
+                  if (orderedIds.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'Este curso ainda não tem disciplinas na grade.\n'
+                        'Vincule-as em Config → Cursos → ícone de link.',
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        textAlign: TextAlign.center,
                       ),
-                    )
-                    .toList(),
+                    );
+                  }
+
+                  return ListView(
+                    shrinkWrap: true,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'Somente disciplinas da grade do curso podem ser adicionadas.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ),
+                      ...orderedIds.map((id) {
+                        final inCourse = courseIds.contains(id);
+                        final isLinked = linkedIds.contains(id);
+                        return CheckboxListTile(
+                          value: isLinked,
+                          title: Text(byId[id] ?? 'Disciplina'),
+                          subtitle: inCourse ? null : const Text('Fora da grade atual do curso'),
+                          // Só permite vincular se estiver na grade; desvincular sempre (com regra mín. 1).
+                          onChanged: (!inCourse && !isLinked)
+                              ? null
+                              : (checked) => _toggleDiscipline(
+                                    context,
+                                    id,
+                                    checked == true,
+                                    linkedIds.length,
+                                  ),
+                        );
+                      }),
+                    ],
+                  );
+                },
               ),
             ),
             actions: [
@@ -226,6 +306,87 @@ class _ClassDetailScreenState extends ConsumerState<ClassDetailScreen> with Sing
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao atualizar disciplina: $e')));
       }
     }
+  }
+}
+
+/// Diálogo de edição de nome/turno. Stateful para descartar o controller
+/// apenas no `dispose` do State (evita assertion `_dependents.isEmpty`).
+class _EditClassDialog extends StatefulWidget {
+  const _EditClassDialog({required this.schoolClass});
+
+  final SchoolClass schoolClass;
+
+  @override
+  State<_EditClassDialog> createState() => _EditClassDialogState();
+}
+
+class _EditClassDialogState extends State<_EditClassDialog> {
+  static const _noShift = '__none__';
+
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late String _shiftValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.schoolClass.name);
+    _shiftValue = widget.schoolClass.shift ?? _noShift;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.pop(context, (
+      name: _nameController.text.trim(),
+      shift: _shiftValue == _noShift ? null : _shiftValue,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Editar turma'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Nome'),
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe um nome' : null,
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _shiftValue,
+              decoration: const InputDecoration(labelText: 'Turno (opcional)'),
+              items: const [
+                DropdownMenuItem(value: _noShift, child: Text('Não informado')),
+                DropdownMenuItem(value: 'MORNING', child: Text('Manhã')),
+                DropdownMenuItem(value: 'AFTERNOON', child: Text('Tarde')),
+                DropdownMenuItem(value: 'EVENING', child: Text('Vespertino')),
+                DropdownMenuItem(value: 'NIGHT', child: Text('Noite')),
+              ],
+              onChanged: (value) {
+                if (value != null) setState(() => _shiftValue = value);
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        FilledButton(onPressed: _save, child: const Text('Salvar')),
+      ],
+    );
   }
 }
 
@@ -417,7 +578,8 @@ class _EnrollmentsTab extends ConsumerWidget {
     final allStudents = await ref.read(studentsRepositoryProvider).getStudents();
     final enrolled = ref.read(enrollmentsProvider(classId)).valueOrNull ?? const <Enrollment>[];
     final enrolledIds = enrolled.where((e) => e.isActive).map((e) => e.studentId).toSet();
-    final available = allStudents.where((s) => !enrolledIds.contains(s.id)).toList();
+    final available = allStudents.where((s) => !enrolledIds.contains(s.id)).toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     if (available.isEmpty) {
       if (context.mounted) {
@@ -429,18 +591,101 @@ class _EnrollmentsTab extends ConsumerWidget {
     }
 
     if (!context.mounted) return;
-    final selected = await showDialog<Student>(
+    final selectedIds = await showDialog<List<String>>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('Matricular aluno'),
-        children: available
-            .map((s) => SimpleDialogOption(onPressed: () => Navigator.pop(context, s), child: Text(s.name)))
-            .toList(),
-      ),
+      builder: (dialogContext) {
+        final selected = <String>{};
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final allSelected = selected.length == available.length && available.isNotEmpty;
+
+            return AlertDialog(
+              title: const Text('Matricular alunos'),
+              content: SizedBox(
+                width: 480,
+                height: 420,
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: () => setDialogState(() {
+                            if (allSelected) {
+                              selected.clear();
+                            } else {
+                              selected
+                                ..clear()
+                                ..addAll(available.map((s) => s.id));
+                            }
+                          }),
+                          child: Text(allSelected ? 'Limpar seleção' : 'Selecionar todos'),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${selected.length} selecionado(s)',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: available.length,
+                        itemBuilder: (context, index) {
+                          final student = available[index];
+                          final checked = selected.contains(student.id);
+                          return CheckboxListTile(
+                            value: checked,
+                            onChanged: (value) => setDialogState(() {
+                              if (value == true) {
+                                selected.add(student.id);
+                              } else {
+                                selected.remove(student.id);
+                              }
+                            }),
+                            title: Text(student.name),
+                            subtitle: student.registryCode == null || student.registryCode!.isEmpty
+                                ? null
+                                : Text('Matrícula: ${student.registryCode}'),
+                            controlAffinity: ListTileControlAffinity.leading,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton.icon(
+                  onPressed: selected.isEmpty
+                      ? null
+                      : () => Navigator.pop(dialogContext, selected.toList()),
+                  icon: const Icon(Icons.group_add_rounded),
+                  label: Text(
+                    selected.isEmpty ? 'Matricular' : 'Matricular (${selected.length})',
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
-    if (selected == null) return;
+
+    if (selectedIds == null || selectedIds.isEmpty) return;
+
     try {
-      await ref.read(classesActionsProvider).enroll(classId, selected.id);
+      final result = await ref.read(classesActionsProvider).bulkEnroll(classId, selectedIds);
+      if (!context.mounted) return;
+      final skippedInfo = result.skipped > 0 ? ' (${result.skipped} ignorado(s))' : '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${result.totalEnrolled} aluno(s) matriculado(s)$skippedInfo')),
+      );
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao matricular: $e')));

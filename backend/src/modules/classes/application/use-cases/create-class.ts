@@ -1,5 +1,6 @@
 import { ConflictError, NotFoundError, ValidationError } from '../../../../shared/domain/errors';
 import type { AcademicYearRepository } from '../../../academic/application/ports/academic-year-repository';
+import type { CourseDisciplineRepository } from '../../../academic/application/ports/course-discipline-repository';
 import type { CourseRepository } from '../../../academic/application/ports/course-repository';
 import type { DisciplineRepository } from '../../../academic/application/ports/discipline-repository';
 import type { ClassShift, ClassWithDisciplines } from '../../domain/class';
@@ -20,6 +21,7 @@ export type CreateClassUseCaseInput = {
  * Cria uma turma validando que ano letivo, curso e disciplinas pertencem ao
  * professor autenticado — evita vincular turma a estrutura acadêmica de outro professor.
  * Uma turma pode ministrar N disciplinas simultaneamente, cada uma vinculada via `ClassDiscipline`.
+ * Cada disciplina informada deve estar ativa na grade do curso (`CourseDiscipline`).
  */
 export class CreateClassUseCase {
   constructor(
@@ -28,6 +30,7 @@ export class CreateClassUseCase {
     private readonly courses: CourseRepository,
     private readonly disciplines: DisciplineRepository,
     private readonly classDisciplines: ClassDisciplineRepository,
+    private readonly courseDisciplines: CourseDisciplineRepository,
   ) {}
 
   async execute(input: CreateClassUseCaseInput): Promise<ClassWithDisciplines> {
@@ -52,6 +55,18 @@ export class CreateClassUseCase {
       if (!discipline || discipline.deletedAt) {
         throw new NotFoundError('Discipline not found');
       }
+
+      const courseLink = await this.courseDisciplines.findLink(
+        input.teacherId,
+        input.courseId,
+        disciplineId,
+      );
+      if (!courseLink || courseLink.deletedAt) {
+        throw new ValidationError(
+          `Discipline "${discipline.name}" is not linked to the selected course`,
+        );
+      }
+
       disciplineSummaries.push({ id: discipline.id, name: discipline.name });
     }
 

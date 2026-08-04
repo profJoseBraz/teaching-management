@@ -399,6 +399,35 @@ export const openApiDocument = {
           studentId: { type: 'string', format: 'uuid' },
         },
       },
+      BulkEnrollStudentsRequest: {
+        type: 'object',
+        required: ['studentIds'],
+        properties: {
+          studentIds: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 500,
+            items: { type: 'string', format: 'uuid' },
+          },
+        },
+      },
+      BulkEnrollStudentsResponse: {
+        type: 'object',
+        properties: {
+          enrolled: { type: 'array', items: { $ref: '#/components/schemas/Enrollment' } },
+          skipped: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                studentId: { type: 'string', format: 'uuid' },
+                reason: { type: 'string' },
+              },
+            },
+          },
+          totalEnrolled: { type: 'integer' },
+        },
+      },
       Student: {
         type: 'object',
         properties: {
@@ -1424,6 +1453,8 @@ export const openApiDocument = {
       post: {
         tags: ['Classes'],
         summary: 'Criar turma',
+        description:
+          'Cada `disciplineId` deve estar na grade do curso (`CourseDiscipline` ativo).',
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
@@ -1437,6 +1468,10 @@ export const openApiDocument = {
                 schema: { type: 'object', properties: { data: { $ref: '#/components/schemas/Class' } } },
               },
             },
+          },
+          '400': {
+            description: 'Alguma disciplina não pertence à grade do curso',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
           },
           '404': {
             description: 'Ano letivo, curso ou alguma disciplina não encontrados',
@@ -1580,6 +1615,45 @@ export const openApiDocument = {
         },
       },
     },
+    '/classes/{classId}/enrollments/bulk': {
+      post: {
+        tags: ['Classes'],
+        summary: 'Matricular vários alunos na turma',
+        description:
+          'Matricula um lote de alunos. Já matriculados ou inexistentes entram em `skipped` sem abortar o lote.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'classId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/BulkEnrollStudentsRequest' } },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Lote processado com ao menos uma matrícula criada',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { data: { $ref: '#/components/schemas/BulkEnrollStudentsResponse' } },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Nenhum aluno pôde ser matriculado ou lista inválida',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '404': {
+            description: 'Turma não encontrada',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
     '/classes/{classId}/disciplines': {
       get: {
         tags: ['Classes'],
@@ -1611,6 +1685,8 @@ export const openApiDocument = {
       post: {
         tags: ['Classes'],
         summary: 'Vincular disciplina adicional à turma',
+        description:
+          'A disciplina deve estar na grade do curso da turma (`CourseDiscipline` ativo).',
         security: [{ bearerAuth: [] }],
         parameters: [
           { name: 'classId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
@@ -1632,6 +1708,10 @@ export const openApiDocument = {
                 },
               },
             },
+          },
+          '400': {
+            description: 'Disciplina não pertence à grade do curso da turma',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
           },
           '404': {
             description: 'Turma ou disciplina não encontrados',

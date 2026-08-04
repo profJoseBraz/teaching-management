@@ -7,6 +7,7 @@ import {
   classDisciplineParamsSchema,
   classIdParamSchema,
   classStudentParamsSchema,
+  bulkEnrollStudentsSchema,
   createClassSchema,
   enrollStudentSchema,
   idParamSchema,
@@ -45,6 +46,12 @@ export function createClassRoutes(controller: ClassController, authMiddleware: A
     validate(classIdParamSchema, 'params'),
     validate(enrollStudentSchema),
     asyncHandler(controller.enrollStudent),
+  );
+  router.post(
+    '/classes/:classId/enrollments/bulk',
+    validate(classIdParamSchema, 'params'),
+    validate(bulkEnrollStudentsSchema),
+    asyncHandler(controller.bulkEnrollStudents),
   );
   router.delete(
     '/classes/:classId/enrollments/:studentId',

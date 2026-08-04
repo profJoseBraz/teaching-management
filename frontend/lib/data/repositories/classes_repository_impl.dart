@@ -43,7 +43,7 @@ class ClassesRepositoryImpl implements ClassesRepository {
       );
 
   @override
-  Future<SchoolClass> updateClass(String id, {String? name, String? shift}) =>
+  Future<SchoolClass> updateClass(String id, {required String name, String? shift}) =>
       _datasource.updateClass(id, name: name, shift: shift);
 
   @override
@@ -55,6 +55,13 @@ class ClassesRepositoryImpl implements ClassesRepository {
   @override
   Future<Enrollment> enrollStudent(String classId, String studentId) =>
       _datasource.enrollStudent(classId, studentId);
+
+  @override
+  Future<({int totalEnrolled, int skipped})> bulkEnrollStudents(
+    String classId,
+    List<String> studentIds,
+  ) =>
+      _datasource.bulkEnrollStudents(classId, studentIds);
 
   @override
   Future<void> unenrollStudent(String classId, String studentId) =>

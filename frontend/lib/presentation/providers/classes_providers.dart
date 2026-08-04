@@ -62,7 +62,7 @@ class ClassesActions {
     return result;
   }
 
-  Future<void> update(String id, {String? name, String? shift}) async {
+  Future<void> update(String id, {required String name, String? shift}) async {
     await _repo.updateClass(id, name: name, shift: shift);
     _ref.invalidate(classesListProvider);
     _ref.invalidate(classDetailProvider(id));
@@ -77,6 +77,15 @@ class ClassesActions {
   Future<void> enroll(String classId, String studentId) async {
     await _repo.enrollStudent(classId, studentId);
     _ref.invalidate(enrollmentsProvider(classId));
+  }
+
+  Future<({int totalEnrolled, int skipped})> bulkEnroll(
+    String classId,
+    List<String> studentIds,
+  ) async {
+    final result = await _repo.bulkEnrollStudents(classId, studentIds);
+    _ref.invalidate(enrollmentsProvider(classId));
+    return result;
   }
 
   Future<void> unenroll(String classId, String studentId) async {

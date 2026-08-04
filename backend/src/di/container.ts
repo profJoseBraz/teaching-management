@@ -47,6 +47,7 @@ import { GetStudentUseCase } from '../modules/students/application/use-cases/get
 import { ListStudentsUseCase } from '../modules/students/application/use-cases/list-students';
 import { SoftDeleteStudentUseCase } from '../modules/students/application/use-cases/soft-delete-student';
 import { UpdateStudentUseCase } from '../modules/students/application/use-cases/update-student';
+import { BulkCreateStudentsUseCase } from '../modules/students/application/use-cases/bulk-create-students';
 import { PrismaStudentRepository } from '../modules/students/infrastructure/prisma-student-repository';
 import { StudentController } from '../modules/students/presentation/student.controller';
 
@@ -59,6 +60,7 @@ import { LinkDisciplineToClassUseCase } from '../modules/classes/application/use
 import { ListClassDisciplinesUseCase } from '../modules/classes/application/use-cases/list-class-disciplines';
 import { ListClassStudentsUseCase } from '../modules/classes/application/use-cases/list-class-students';
 import { ListClassesUseCase } from '../modules/classes/application/use-cases/list-classes';
+import { BulkEnrollStudentsUseCase } from '../modules/classes/application/use-cases/bulk-enroll-students';
 import { UnenrollStudentUseCase } from '../modules/classes/application/use-cases/unenroll-student';
 import { UnlinkDisciplineFromClassUseCase } from '../modules/classes/application/use-cases/unlink-discipline-from-class';
 import { UpdateClassUseCase } from '../modules/classes/application/use-cases/update-class';
@@ -228,6 +230,7 @@ export function createContainer() {
   const studentRepository = new PrismaStudentRepository();
 
   const createStudentUseCase = new CreateStudentUseCase(studentRepository);
+  const bulkCreateStudentsUseCase = new BulkCreateStudentsUseCase(studentRepository);
   const updateStudentUseCase = new UpdateStudentUseCase(studentRepository);
   const listStudentsUseCase = new ListStudentsUseCase(studentRepository);
   const getStudentUseCase = new GetStudentUseCase(studentRepository);
@@ -235,6 +238,7 @@ export function createContainer() {
 
   const studentController = new StudentController(
     createStudentUseCase,
+    bulkCreateStudentsUseCase,
     updateStudentUseCase,
     listStudentsUseCase,
     getStudentUseCase,
@@ -252,6 +256,7 @@ export function createContainer() {
     courseRepository,
     disciplineRepository,
     classDisciplineRepository,
+    courseDisciplineRepository,
   );
   const updateClassUseCase = new UpdateClassUseCase(classRepository, classDisciplineRepository);
   const listClassesUseCase = new ListClassesUseCase(classRepository, classDisciplineRepository);
@@ -262,6 +267,7 @@ export function createContainer() {
     classRepository,
     studentRepository,
   );
+  const bulkEnrollStudentsUseCase = new BulkEnrollStudentsUseCase(enrollStudentUseCase);
   const unenrollStudentUseCase = new UnenrollStudentUseCase(enrollmentRepository);
   const listClassStudentsUseCase = new ListClassStudentsUseCase(
     enrollmentRepository,
@@ -275,6 +281,7 @@ export function createContainer() {
     classDisciplineRepository,
     classRepository,
     disciplineRepository,
+    courseDisciplineRepository,
   );
   const unlinkDisciplineFromClassUseCase = new UnlinkDisciplineFromClassUseCase(
     classDisciplineRepository,
@@ -287,6 +294,7 @@ export function createContainer() {
     getClassUseCase,
     archiveClassUseCase,
     enrollStudentUseCase,
+    bulkEnrollStudentsUseCase,
     unenrollStudentUseCase,
     listClassStudentsUseCase,
     listClassDisciplinesUseCase,

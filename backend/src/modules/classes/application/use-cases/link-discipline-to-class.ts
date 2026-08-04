@@ -1,4 +1,5 @@
-import { ConflictError, NotFoundError } from '../../../../shared/domain/errors';
+import { ConflictError, NotFoundError, ValidationError } from '../../../../shared/domain/errors';
+import type { CourseDisciplineRepository } from '../../../academic/application/ports/course-discipline-repository';
 import type { DisciplineRepository } from '../../../academic/application/ports/discipline-repository';
 import type { ClassDiscipline } from '../../domain/class-discipline';
 import type { ClassDisciplineRepository } from '../ports/class-discipline-repository';
@@ -10,12 +11,16 @@ export type LinkDisciplineToClassInput = {
   disciplineId: string;
 };
 
-/** Vincula uma disciplina adicional a uma turma já existente. */
+/**
+ * Vincula uma disciplina adicional a uma turma já existente.
+ * A disciplina precisa estar na grade do curso da turma (`CourseDiscipline` ativo).
+ */
 export class LinkDisciplineToClassUseCase {
   constructor(
     private readonly classDisciplines: ClassDisciplineRepository,
     private readonly classes: ClassRepository,
     private readonly disciplines: DisciplineRepository,
+    private readonly courseDisciplines: CourseDisciplineRepository,
   ) {}
 
   async execute(input: LinkDisciplineToClassInput): Promise<ClassDiscipline> {
@@ -27,6 +32,17 @@ export class LinkDisciplineToClassUseCase {
     const discipline = await this.disciplines.findById(input.teacherId, input.disciplineId);
     if (!discipline || discipline.deletedAt) {
       throw new NotFoundError('Discipline not found');
+    }
+
+    const courseLink = await this.courseDisciplines.findLink(
+      input.teacherId,
+      klass.courseId,
+      input.disciplineId,
+    );
+    if (!courseLink || courseLink.deletedAt) {
+      throw new ValidationError(
+        `Discipline "${discipline.name}" is not linked to this class course`,
+      );
     }
 
     const existingLink = await this.classDisciplines.findLink(

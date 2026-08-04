@@ -304,6 +304,7 @@ Unique `(activityId, studentId)`.
 ### Estrutura acadêmica
 7. Disciplina pode vincular-se a N cursos via `CourseDiscipline`.
 8. Turma referencia curso + ano; ministra N disciplinas via `ClassDiscipline` (par turma+disciplina único, soft delete).
+   Toda disciplina vinculada à turma **deve** estar na grade do curso (`CourseDiscipline` ativo).
 9. Aluno ↔ Turma é N:N via `Enrollment`.
 
 ### Aulas e conteúdos
@@ -548,6 +549,7 @@ Base: `/api/v1`
 - `/students`
 - `/classes`
 - `/classes/:id/enrollments`
+- `/classes/:id/enrollments/bulk`
 - `/classes/:classId/disciplines`
 
 ### Lessons, contents, attendance
@@ -665,7 +667,7 @@ Login
 1. **Login**
 2. **Dashboard** — attention items + resumo do dia
 3. **Lista de Turmas** — filtro por ano letivo
-4. **Detalhe da Turma** — hub com contadores de pendência
+4. **Detalhe da Turma** — hub com contadores de pendência; edição de nome/turno; disciplinas; arquivar
 5. **Lista/Agenda de Aulas**
 6. **Chamada (Frequência)** — grid rápido Presente/Ausente/Atrasado
 7. **Conteúdos** — em andamento / concluídos; vincular a aulas

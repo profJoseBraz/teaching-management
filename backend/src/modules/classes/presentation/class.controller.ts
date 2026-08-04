@@ -5,6 +5,7 @@ import type { UpdateClassUseCase } from '../application/use-cases/update-class';
 import type { ListClassesUseCase } from '../application/use-cases/list-classes';
 import type { GetClassUseCase } from '../application/use-cases/get-class';
 import type { ArchiveClassUseCase } from '../application/use-cases/archive-class';
+import type { BulkEnrollStudentsUseCase } from '../application/use-cases/bulk-enroll-students';
 import type { EnrollStudentUseCase } from '../application/use-cases/enroll-student';
 import type { UnenrollStudentUseCase } from '../application/use-cases/unenroll-student';
 import type { ListClassStudentsUseCase } from '../application/use-cases/list-class-students';
@@ -33,6 +34,7 @@ export class ClassController {
     private readonly getClassUseCase: GetClassUseCase,
     private readonly archiveClassUseCase: ArchiveClassUseCase,
     private readonly enrollStudentUseCase: EnrollStudentUseCase,
+    private readonly bulkEnrollStudentsUseCase: BulkEnrollStudentsUseCase,
     private readonly unenrollStudentUseCase: UnenrollStudentUseCase,
     private readonly listClassStudentsUseCase: ListClassStudentsUseCase,
     private readonly listClassDisciplinesUseCase: ListClassDisciplinesUseCase,
@@ -91,6 +93,16 @@ export class ClassController {
       teacherId,
       classId: req.params.classId,
       studentId: req.body.studentId,
+    });
+    res.status(201).json({ data: result });
+  };
+
+  bulkEnrollStudents = async (req: Request<ClassIdParams>, res: Response): Promise<void> => {
+    const teacherId = req.auth!.teacherId;
+    const result = await this.bulkEnrollStudentsUseCase.execute({
+      teacherId,
+      classId: req.params.classId,
+      studentIds: req.body.studentIds,
     });
     res.status(201).json({ data: result });
   };
