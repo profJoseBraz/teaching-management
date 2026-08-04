@@ -15,10 +15,12 @@ export type Activity = {
   teacherId: string;
   classId: string;
   disciplineId: string;
-  originLessonId: string;
+  originLessonId: string | null;
   assessmentPeriodId: string | null;
   title: string;
   description: string | null;
+  /** Rótulo livre opcional para agrupar atividades. */
+  tag: string | null;
   category: ActivityCategory;
   mode: ActivityMode;
   gradeMode: ActivityGradeMode;

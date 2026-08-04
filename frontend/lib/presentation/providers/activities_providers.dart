@@ -16,17 +16,17 @@ final activitiesRepositoryProvider = Provider<ActivitiesRepository>(
   (ref) => ActivitiesRepositoryImpl(ref.watch(activitiesDatasourceProvider)),
 );
 
-/// Filtro de listagem: turma obrigatória + disciplina opcional (`null` =
-/// todas as disciplinas vinculadas à turma).
-typedef ActivitiesQuery = ({String classId, String? disciplineId});
+/// Filtro de listagem: turma obrigatória + disciplina/tag opcionais.
+typedef ActivitiesQuery = ({String classId, String? disciplineId, String? tag});
 
 final activitiesListProvider = FutureProvider.family<List<Activity>, ActivitiesQuery>((ref, query) {
-  return ref.watch(activitiesRepositoryProvider).getActivities(query.classId, disciplineId: query.disciplineId).then(
-    (list) {
-      list.sort((a, b) => b.dueDate.compareTo(a.dueDate));
-      return list;
-    },
-  );
+  return ref
+      .watch(activitiesRepositoryProvider)
+      .getActivities(query.classId, disciplineId: query.disciplineId, tag: query.tag)
+      .then((list) {
+    list.sort((a, b) => b.dueDate.compareTo(a.dueDate));
+    return list;
+  });
 });
 
 final activityDetailProvider = FutureProvider.family<ActivityDetail, String>((ref, activityId) {
@@ -42,11 +42,12 @@ class ActivitiesActions {
 
   Future<Activity> create(
     String classId, {
-    required String originLessonId,
+    String? originLessonId,
     String? disciplineId,
     String? assessmentPeriodId,
     required String title,
     String? description,
+    String? tag,
     String category = 'ASSIGNMENT',
     String mode = 'INDIVIDUAL',
     String gradeMode = 'INDIVIDUAL',
@@ -60,6 +61,7 @@ class ActivitiesActions {
       assessmentPeriodId: assessmentPeriodId,
       title: title,
       description: description,
+      tag: tag,
       category: category,
       mode: mode,
       gradeMode: gradeMode,
@@ -75,6 +77,7 @@ class ActivitiesActions {
     required String classId,
     required String title,
     String? description,
+    String? tag,
     required String category,
     required double maxScore,
     required DateTime dueDate,
@@ -83,10 +86,17 @@ class ActivitiesActions {
       id,
       title: title,
       description: description,
+      tag: tag,
       category: category,
       maxScore: maxScore,
       dueDate: dueDate,
     );
+    _ref.invalidate(activitiesListProvider);
+    _ref.invalidate(activityDetailProvider(id));
+  }
+
+  Future<void> delete(String id, {required String classId}) async {
+    await _repo.deleteActivity(id);
     _ref.invalidate(activitiesListProvider);
     _ref.invalidate(activityDetailProvider(id));
   }

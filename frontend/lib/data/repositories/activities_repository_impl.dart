@@ -11,8 +11,8 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
   final ActivitiesDatasource _datasource;
 
   @override
-  Future<List<Activity>> getActivities(String classId, {String? disciplineId}) =>
-      _datasource.getActivities(classId, disciplineId: disciplineId);
+  Future<List<Activity>> getActivities(String classId, {String? disciplineId, String? tag}) =>
+      _datasource.getActivities(classId, disciplineId: disciplineId, tag: tag);
 
   @override
   Future<ActivityDetail> getActivity(String id) => _datasource.getActivity(id);
@@ -20,11 +20,12 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
   @override
   Future<Activity> createActivity(
     String classId, {
-    required String originLessonId,
+    String? originLessonId,
     String? disciplineId,
     String? assessmentPeriodId,
     required String title,
     String? description,
+    String? tag,
     String category = 'ASSIGNMENT',
     String mode = 'INDIVIDUAL',
     String gradeMode = 'INDIVIDUAL',
@@ -38,6 +39,7 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
         assessmentPeriodId: assessmentPeriodId,
         title: title,
         description: description,
+        tag: tag,
         category: category,
         mode: mode,
         gradeMode: gradeMode,
@@ -50,6 +52,7 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
     String id, {
     required String title,
     String? description,
+    String? tag,
     required String category,
     required double maxScore,
     required DateTime dueDate,
@@ -58,10 +61,14 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
         id,
         title: title,
         description: description,
+        tag: tag,
         category: category,
         maxScore: maxScore,
         dueDate: dueDate,
       );
+
+  @override
+  Future<void> deleteActivity(String id) => _datasource.deleteActivity(id);
 
   @override
   Future<List<ActivityGroup>> createGroups(

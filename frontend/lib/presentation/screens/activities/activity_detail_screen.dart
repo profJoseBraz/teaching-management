@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/errors/app_exception.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/widgets/async_value_widget.dart';
+import '../../../core/widgets/markdown_description_field.dart';
+import '../../../core/widgets/markdown_text.dart';
 import '../../../core/widgets/status_chip.dart';
 import '../../../domain/entities/activity.dart';
 import '../../../domain/entities/activity_detail.dart';
@@ -66,6 +71,15 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
               _openEditActivityDialog(detail.activity);
             },
           ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Excluir atividade',
+            onPressed: () {
+              final detail = detailAsync.valueOrNull;
+              if (detail == null) return;
+              _confirmDeleteActivity(detail.activity);
+            },
+          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -97,13 +111,18 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
                         ),
                         if (activity.description?.isNotEmpty == true) ...[
                           const SizedBox(height: 6),
-                          Text(activity.description!),
+                          MarkdownText(activity.description!),
                         ],
                         const SizedBox(height: 12),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: [
+                            if (activity.tag != null && activity.tag!.isNotEmpty)
+                              Chip(
+                                avatar: const Icon(Icons.label_outline, size: 16),
+                                label: Text(activity.tag!),
+                              ),
                             Chip(label: Text(activity.categoryLabel)),
                             Chip(label: Text(activity.isGroup ? 'Em grupo' : 'Individual')),
                             Chip(label: Text(activity.isSharedGrade ? 'Nota compartilhada' : 'Nota individual')),
@@ -214,6 +233,54 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
     );
   }
 
+  Future<void> _confirmDeleteActivity(Activity activity) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      useRootNavigator: true,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Excluir atividade'),
+        content: Text(
+          'Excluir "${activity.title}"?\n\n'
+          'A atividade deixará de aparecer na turma. Entregas e grupos vinculados também serão arquivados.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    try {
+      await ref.read(activitiesActionsProvider).delete(
+            activity.id,
+            classId: widget.classId,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Atividade excluída.')),
+      );
+      // Volta para a aba Atividades da turma (índice 3).
+      context.go(AppRoutes.classDetail(widget.classId), extra: 3);
+    } catch (e) {
+      if (!mounted) return;
+      final detail = e is AppException ? e.displayMessage : e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao excluir atividade: $detail')),
+      );
+    }
+  }
+
   Future<void> _openEditActivityDialog(Activity activity) async {
     final draft = await showDialog<_EditActivityDraft>(
       context: context,
@@ -227,6 +294,7 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
             classId: widget.classId,
             title: draft.title,
             description: draft.description,
+            tag: draft.tag,
             category: draft.category,
             maxScore: draft.maxScore,
             dueDate: draft.dueDate,
@@ -453,6 +521,7 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
 typedef _EditActivityDraft = ({
   String title,
   String? description,
+  String? tag,
   String category,
   double maxScore,
   DateTime dueDate,
@@ -473,6 +542,7 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
+  late final TextEditingController _tagController;
   late final TextEditingController _maxScoreController;
   late String _category;
   late DateTime _dueDate;
@@ -483,6 +553,7 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
     final activity = widget.activity;
     _titleController = TextEditingController(text: activity.title);
     _descriptionController = TextEditingController(text: activity.description ?? '');
+    _tagController = TextEditingController(text: activity.tag ?? '');
     _maxScoreController = TextEditingController(text: activity.maxScore.toStringAsFixed(0));
     _category = activity.category;
     _dueDate = activity.dueDate;
@@ -492,6 +563,7 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _tagController.dispose();
     _maxScoreController.dispose();
     super.dispose();
   }
@@ -500,9 +572,11 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
     if (!_formKey.currentState!.validate()) return;
     final maxScore = double.parse(_maxScoreController.text);
     final description = _descriptionController.text.trim();
+    final tag = _tagController.text.trim();
     Navigator.pop(context, (
       title: _titleController.text.trim(),
       description: description.isEmpty ? null : description,
+      tag: tag.isEmpty ? null : tag,
       category: _category,
       maxScore: maxScore,
       dueDate: _dueDate,
@@ -526,10 +600,17 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe um título' : null,
               ),
               const SizedBox(height: 12),
+              MarkdownDescriptionField(controller: _descriptionController),
+              const SizedBox(height: 12),
               TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(labelText: 'Descrição (opcional)'),
-                maxLines: 3,
+                controller: _tagController,
+                decoration: const InputDecoration(
+                  labelText: 'Tag (opcional)',
+                  hintText: 'Ex.: Prova 1, Recuperação',
+                  helperText: 'Use a mesma tag em várias atividades para agrupá-las',
+                ),
+                maxLength: 80,
+                textCapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(

@@ -4,15 +4,16 @@ import '../entities/activity_group.dart';
 import '../entities/submission.dart';
 
 abstract interface class ActivitiesRepository {
-  Future<List<Activity>> getActivities(String classId, {String? disciplineId});
+  Future<List<Activity>> getActivities(String classId, {String? disciplineId, String? tag});
   Future<ActivityDetail> getActivity(String id);
   Future<Activity> createActivity(
     String classId, {
-    required String originLessonId,
+    String? originLessonId,
     String? disciplineId,
     String? assessmentPeriodId,
     required String title,
     String? description,
+    String? tag,
     String category = 'ASSIGNMENT',
     String mode = 'INDIVIDUAL',
     String gradeMode = 'INDIVIDUAL',
@@ -23,10 +24,12 @@ abstract interface class ActivitiesRepository {
     String id, {
     required String title,
     String? description,
+    String? tag,
     required String category,
     required double maxScore,
     required DateTime dueDate,
   });
+  Future<void> deleteActivity(String id);
 
   Future<List<ActivityGroup>> createGroups(
     String activityId,

@@ -3,10 +3,11 @@ class Activity {
     required this.id,
     required this.classId,
     required this.disciplineId,
-    required this.originLessonId,
+    this.originLessonId,
     this.assessmentPeriodId,
     required this.title,
     this.description,
+    this.tag,
     required this.category,
     required this.mode,
     required this.gradeMode,
@@ -18,10 +19,12 @@ class Activity {
   final String id;
   final String classId;
   final String disciplineId;
-  final String originLessonId;
+  final String? originLessonId;
   final String? assessmentPeriodId;
   final String title;
   final String? description;
+  /// Rótulo livre opcional para agrupar atividades.
+  final String? tag;
   final String category;
   final String mode;
   final String gradeMode;

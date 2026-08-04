@@ -8,10 +8,11 @@ Activity activityFromJson(Map<String, dynamic> json) => Activity(
       id: json['id'] as String,
       classId: json['classId'] as String,
       disciplineId: json['disciplineId'] as String,
-      originLessonId: json['originLessonId'] as String,
+      originLessonId: json['originLessonId'] as String?,
       assessmentPeriodId: json['assessmentPeriodId'] as String?,
       title: json['title'] as String,
       description: json['description'] as String?,
+      tag: json['tag'] as String?,
       category: json['category'] as String? ?? 'ASSIGNMENT',
       mode: json['mode'] as String? ?? 'INDIVIDUAL',
       gradeMode: json['gradeMode'] as String? ?? 'INDIVIDUAL',
@@ -64,10 +65,17 @@ class ActivitiesDatasource {
 
   final ApiClient _apiClient;
 
-  Future<List<Activity>> getActivities(String classId, {String? disciplineId}) async {
+  Future<List<Activity>> getActivities(
+    String classId, {
+    String? disciplineId,
+    String? tag,
+  }) async {
     final response = await _apiClient.get(
       '/classes/$classId/activities',
-      query: {'disciplineId': disciplineId},
+      query: {
+        'disciplineId': disciplineId,
+        'tag': tag,
+      },
     );
     return (response['data'] as List).map((e) => activityFromJson(e as Map<String, dynamic>)).toList();
   }
@@ -79,13 +87,13 @@ class ActivitiesDatasource {
 
   Future<Activity> createActivity(
     String classId, {
-    required String originLessonId,
-    /// Opcional — quando ausente, o backend herda a disciplina da
-    /// [originLessonId].
+    String? originLessonId,
+    /// Obrigatório sem [originLessonId]; com aula, pode herdar a disciplina.
     String? disciplineId,
     String? assessmentPeriodId,
     required String title,
     String? description,
+    String? tag,
     String category = 'ASSIGNMENT',
     String mode = 'INDIVIDUAL',
     String gradeMode = 'INDIVIDUAL',
@@ -93,11 +101,12 @@ class ActivitiesDatasource {
     required DateTime dueDate,
   }) async {
     final response = await _apiClient.post('/classes/$classId/activities', data: {
-      'originLessonId': originLessonId,
+      if (originLessonId != null) 'originLessonId': originLessonId,
       if (disciplineId != null) 'disciplineId': disciplineId,
       if (assessmentPeriodId != null) 'assessmentPeriodId': assessmentPeriodId,
       'title': title,
       if (description != null) 'description': description,
+      'tag': tag,
       'category': category,
       'mode': mode,
       'gradeMode': gradeMode,
@@ -111,6 +120,7 @@ class ActivitiesDatasource {
     String id, {
     required String title,
     String? description,
+    String? tag,
     required String category,
     required double maxScore,
     required DateTime dueDate,
@@ -118,12 +128,15 @@ class ActivitiesDatasource {
     final response = await _apiClient.patch('/activities/$id', data: {
       'title': title,
       'description': description,
+      'tag': tag,
       'category': category,
       'maxScore': maxScore,
       'dueDate': _formatDate(dueDate),
     });
     return activityFromJson(response['data'] as Map<String, dynamic>);
   }
+
+  Future<void> deleteActivity(String id) => _apiClient.delete('/activities/$id');
 
   Future<List<ActivityGroup>> createGroups(
     String activityId,

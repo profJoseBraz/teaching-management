@@ -114,14 +114,23 @@ export class PrismaInsightsRepository implements InsightsRepository {
       return 0;
     }
 
-    const lessonIds = [...new Set(submissions.map((submission) => submission.activity.originLessonId))];
+    const withOriginLesson = submissions.filter(
+      (submission) => submission.activity.originLessonId != null,
+    );
+    const lessonIds = [
+      ...new Set(withOriginLesson.map((submission) => submission.activity.originLessonId!)),
+    ];
+    if (lessonIds.length === 0) {
+      return 0;
+    }
+
     const absences = await prisma.attendance.findMany({
       where: { teacherId: filters.teacherId, status: 'ABSENT', lessonId: { in: lessonIds } },
       select: { lessonId: true, studentId: true },
     });
 
     const absentKeys = new Set(absences.map((absence) => `${absence.lessonId}:${absence.studentId}`));
-    return submissions.filter((submission) =>
+    return withOriginLesson.filter((submission) =>
       absentKeys.has(`${submission.activity.originLessonId}:${submission.studentId}`),
     ).length;
   }

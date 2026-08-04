@@ -244,6 +244,7 @@ model Student {
 
   @@index([teacherId])
   @@index([teacherId, name])
+  @@index([teacherId, registryCode])
   @@map("students")
 }
 
@@ -413,10 +414,12 @@ model Activity {
   teacherId          String             @map("teacher_id") @db.Uuid
   classId            String             @map("class_id") @db.Uuid
   disciplineId       String             @map("discipline_id") @db.Uuid
-  originLessonId     String             @map("origin_lesson_id") @db.Uuid
+  originLessonId     String?            @map("origin_lesson_id") @db.Uuid
   assessmentPeriodId String?            @map("assessment_period_id") @db.Uuid
   title              String             @db.VarChar(200)
-  description        String?            @db.Text
+  description        String?            @db.VarChar(5000)
+  /// Rótulo livre opcional para agrupar atividades (ex.: "Prova 1", "Recuperação").
+  tag                String?            @db.VarChar(80)
   category           ActivityCategory   @default(ASSIGNMENT)
   mode               ActivityMode       @default(INDIVIDUAL)
   gradeMode          ActivityGradeMode  @default(INDIVIDUAL) @map("grade_mode")
@@ -430,7 +433,7 @@ model Activity {
   teacher          User              @relation(fields: [teacherId], references: [id])
   class            Class             @relation(fields: [classId], references: [id])
   discipline       Discipline        @relation(fields: [disciplineId], references: [id])
-  originLesson     Lesson            @relation(fields: [originLessonId], references: [id])
+  originLesson     Lesson?           @relation(fields: [originLessonId], references: [id])
   assessmentPeriod AssessmentPeriod? @relation(fields: [assessmentPeriodId], references: [id])
   groups           ActivityGroup[]
   submissions      Submission[]
@@ -442,6 +445,8 @@ model Activity {
   @@index([originLessonId])
   @@index([assessmentPeriodId])
   @@index([teacherId, dueDate, classId])
+  @@index([teacherId, tag])
+  @@index([classId, tag])
   @@map("activities")
 }
 

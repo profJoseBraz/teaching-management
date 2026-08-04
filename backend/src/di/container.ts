@@ -48,6 +48,8 @@ import { ListStudentsUseCase } from '../modules/students/application/use-cases/l
 import { SoftDeleteStudentUseCase } from '../modules/students/application/use-cases/soft-delete-student';
 import { UpdateStudentUseCase } from '../modules/students/application/use-cases/update-student';
 import { BulkCreateStudentsUseCase } from '../modules/students/application/use-cases/bulk-create-students';
+import { CreateStudentsBatchUseCase } from '../modules/students/application/use-cases/create-students-batch';
+import { PreviewStudentPasteUseCase } from '../modules/students/application/use-cases/preview-student-paste';
 import { PrismaStudentRepository } from '../modules/students/infrastructure/prisma-student-repository';
 import { StudentController } from '../modules/students/presentation/student.controller';
 
@@ -106,6 +108,7 @@ import { GradeGroupSharedUseCase } from '../modules/activities/application/use-c
 import { GradeSubmissionUseCase } from '../modules/activities/application/use-cases/grade-submission';
 import { ListActivitiesUseCase } from '../modules/activities/application/use-cases/list-activities';
 import { ListSubmissionsUseCase } from '../modules/activities/application/use-cases/list-submissions';
+import { SoftDeleteActivityUseCase } from '../modules/activities/application/use-cases/soft-delete-activity';
 import { UpdateActivityUseCase } from '../modules/activities/application/use-cases/update-activity';
 import { UpdateSubmissionStatusUseCase } from '../modules/activities/application/use-cases/update-submission-status';
 import { PrismaActivityGroupRepository } from '../modules/activities/infrastructure/prisma-activity-group-repository';
@@ -232,6 +235,8 @@ export function createContainer() {
 
   const createStudentUseCase = new CreateStudentUseCase(studentRepository);
   const bulkCreateStudentsUseCase = new BulkCreateStudentsUseCase(studentRepository);
+  const previewStudentPasteUseCase = new PreviewStudentPasteUseCase(studentRepository);
+  const createStudentsBatchUseCase = new CreateStudentsBatchUseCase(studentRepository);
   const updateStudentUseCase = new UpdateStudentUseCase(studentRepository);
   const listStudentsUseCase = new ListStudentsUseCase(studentRepository);
   const getStudentUseCase = new GetStudentUseCase(studentRepository);
@@ -240,6 +245,8 @@ export function createContainer() {
   const studentController = new StudentController(
     createStudentUseCase,
     bulkCreateStudentsUseCase,
+    previewStudentPasteUseCase,
+    createStudentsBatchUseCase,
     updateStudentUseCase,
     listStudentsUseCase,
     getStudentUseCase,
@@ -401,6 +408,7 @@ export function createContainer() {
     classDisciplineGateway,
   );
   const updateActivityUseCase = new UpdateActivityUseCase(activityRepository);
+  const softDeleteActivityUseCase = new SoftDeleteActivityUseCase(activityRepository);
   const listActivitiesUseCase = new ListActivitiesUseCase(activityRepository, classOwnershipChecker);
   const getActivityUseCase = new GetActivityUseCase(activityRepository, submissionRepository);
   const createActivityGroupsUseCase = new CreateActivityGroupsUseCase(
@@ -421,6 +429,7 @@ export function createContainer() {
   const activityController = new ActivityController(
     createActivityUseCase,
     updateActivityUseCase,
+    softDeleteActivityUseCase,
     listActivitiesUseCase,
     getActivityUseCase,
     createActivityGroupsUseCase,

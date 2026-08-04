@@ -273,15 +273,26 @@ export class PrismaReportsRepository implements ReportsRepository {
       return [];
     }
 
-    const lessonIds = [...new Set(submissions.map((submission) => submission.activity.originLessonId))];
+    const withOriginLesson = submissions.filter(
+      (submission) => submission.activity.originLessonId != null && submission.activity.originLesson != null,
+    );
+    const lessonIds = [
+      ...new Set(withOriginLesson.map((submission) => submission.activity.originLessonId!)),
+    ];
+    if (lessonIds.length === 0) {
+      return [];
+    }
+
     const absences = await prisma.attendance.findMany({
       where: { teacherId, status: 'ABSENT', lessonId: { in: lessonIds } },
       select: { lessonId: true, studentId: true },
     });
     const absentKeys = new Set(absences.map((absence) => `${absence.lessonId}:${absence.studentId}`));
 
-    return submissions
-      .filter((submission) => absentKeys.has(`${submission.activity.originLessonId}:${submission.studentId}`))
+    return withOriginLesson
+      .filter((submission) =>
+        absentKeys.has(`${submission.activity.originLessonId}:${submission.studentId}`),
+      )
       .map((submission) => ({
         submissionId: submission.id,
         studentId: submission.studentId,
@@ -290,7 +301,7 @@ export class PrismaReportsRepository implements ReportsRepository {
         activityTitle: submission.activity.title,
         classId: submission.activity.classId,
         className: submission.activity.class.name,
-        originLessonDate: submission.activity.originLesson.date,
+        originLessonDate: submission.activity.originLesson!.date,
       }));
   }
 

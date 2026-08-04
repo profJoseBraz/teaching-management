@@ -52,6 +52,11 @@ export function createActivityRoutes(
     validate(updateActivitySchema),
     asyncHandler(activityController.update),
   );
+  router.delete(
+    '/activities/:id',
+    validate(activityIdParamSchema, 'params'),
+    asyncHandler(activityController.remove),
+  );
   router.post(
     '/activities/:id/groups',
     validate(activityGroupsParamSchema, 'params'),
