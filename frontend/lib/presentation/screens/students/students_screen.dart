@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/app_exception.dart';
 import '../../../core/widgets/async_value_widget.dart';
 import '../../../domain/entities/student.dart';
 import '../../providers/students_providers.dart';
@@ -187,13 +188,22 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                             Navigator.pop(dialogContext, true);
                             if (!mounted) return;
 
-                            final skippedInfo = bulk.skipped.isEmpty
-                                ? ''
-                                : ' (${bulk.skipped.length} linha(s) ignorada(s))';
+                            final duplicateSkips = bulk.skipped
+                                .where((s) => s.reason.contains('já cadastrado'))
+                                .length;
+                            final otherSkips = bulk.skipped.length - duplicateSkips;
+                            final parts = <String>[
+                              if (bulk.totalCreated > 0) '${bulk.totalCreated} aluno(s) cadastrado(s)',
+                              if (duplicateSkips > 0)
+                                '$duplicateSkips já cadastrado(s) com esta matrícula',
+                              if (otherSkips > 0) '$otherSkips linha(s) ignorada(s)',
+                            ];
                             ScaffoldMessenger.of(this.context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  '${bulk.totalCreated} aluno(s) cadastrado(s)$skippedInfo',
+                                  parts.isEmpty
+                                      ? 'Nenhum aluno cadastrado'
+                                      : parts.join(' · '),
                                 ),
                               ),
                             );
@@ -325,7 +335,8 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text('Erro ao salvar aluno: $e')));
+      final detail = e is AppException ? e.displayMessage : e.toString();
+      ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(detail)));
     }
   }
 }

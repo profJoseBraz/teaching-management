@@ -47,12 +47,21 @@ ids existentes do ano letivo, sem repetição).
 ### Students (`src/modules/students`)
 
 - `GET /students?search=` · `POST /students`
+- `POST /students/bulk/preview` — resolve texto colado **sem gravar**
+  (`{ candidates: NEW|EXISTING, skipped, totalParsed, totalExisting, totalNew }`)
 - `POST /students/bulk` — cadastro em lote a partir de texto colado (`{ "text": "..." }`)
   - Aceita um nome por linha **ou** registros com Matrícula/Nome/E-mail/Telefone/Obs
   - Separadores: tab, `;` ou `,` — com ou sem cabeçalho (`Matrícula;Nome;E-mail`)
   - Ordem posicional (sem cabeçalho): `Matrícula;Nome;E-mail;Telefone;Obs`
   - Resposta: `{ created, skipped, totalParsed, totalCreated }`
+  - Matrícula duplicada (mesmo professor, aluno ativo) → linha em `skipped` com
+    `"Aluno já cadastrado com esta matrícula."`
+- `POST /students/batch` — cria alunos a partir de lista estruturada (pós-confirmação na UI)
 - `GET/PATCH/DELETE /students/{id}` (`DELETE` = soft delete)
+- `POST/PATCH` com `registryCode` já usado → `409` `"Aluno já cadastrado com esta matrícula."`
+  (unicidade case-insensitive por professor; alunos soft-deleted não bloqueiam)
+- No app (Turma → Alunos → **Colar lista**): `preview` → tela de confirmação com checkboxes
+  → `batch` (novos) + `enrollments/bulk` (selecionados)
 
 ### Classes & Enrollments (`src/modules/classes`)
 
@@ -110,8 +119,8 @@ alunos pendentes. Não há preenchimento automático como `PRESENT`.
 
 ### Activities (`src/modules/activities`)
 
-- `GET /classes/{classId}/activities` (aceita filtro `?disciplineId=`) · `POST /classes/{classId}/activities`
-- `GET/PATCH /activities/{id}` (`GET` inclui submissions + resumo agregado)
+- `GET /classes/{classId}/activities` (aceita filtro `?disciplineId=` e `?tag=`) · `POST /classes/{classId}/activities`
+- `GET/PATCH/DELETE /activities/{id}` (`GET` inclui submissions + resumo agregado; `DELETE` = soft delete da atividade + submissions/grupos)
 - `POST /activities/{id}/groups` — cria/substitui grupos (`mode=GROUP`) e atribui `groupId` às submissions
 - `GET /activities/{id}/submissions`
 - `PATCH /submissions/{id}` (body `{ status: 'PENDING' | 'SUBMITTED' }`) — alterna pendente/entregue; não altera `GRADED`
@@ -122,8 +131,15 @@ alunos pendentes. Não há preenchimento automático como `PRESENT`.
 - A criação de atividade sempre gera `Submission` `PENDING` para todos os alunos com matrícula ativa na
   turma, independentemente de `mode` ser `INDIVIDUAL` ou `GROUP`. Para `GROUP`, o `groupId` é atribuído
   posteriormente via `CreateActivityGroups`, sem bloquear a criação da atividade.
-- `disciplineId` no body é opcional: quando ausente, é herdado de `originLessonId.disciplineId`; quando
-  informado, deve ser idêntico ao da aula de origem e estar vinculado (`ClassDiscipline` ativo) à turma.
+- `originLessonId` no body é opcional (atividade pode existir sem aula de origem).
+- `description` aceita até 5000 caracteres (`VARCHAR(5000)`), em **Markdown**
+  (negrito, itálico, títulos, listas). O cliente renderiza na leitura; o backend
+  armazena o texto bruto sem interpretar a marcação.
+- `tag` (opcional, até 80 chars): rótulo livre para agrupar várias atividades
+  (ex.: `"Prova 1"`). Listagem aceita `?tag=` (case-insensitive).
+- `disciplineId` no body: obrigatório quando `originLessonId` está ausente; com aula de origem, pode
+  ser omitido (herda da aula) ou informado se for idêntico ao da aula e estiver vinculado
+  (`ClassDiscipline` ativo) à turma.
 
 ### Insights & Dashboard (`src/modules/insights`)
 

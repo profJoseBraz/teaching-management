@@ -6,9 +6,12 @@ import 'package:intl/intl.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/widgets/async_value_widget.dart';
 import '../../../core/widgets/status_chip.dart';
+import '../../../core/errors/app_exception.dart';
 import '../../../domain/entities/enrollment.dart';
 import '../../../domain/entities/lesson.dart';
 import '../../../domain/entities/school_class.dart';
+import '../../../domain/entities/student.dart';
+import '../../../domain/entities/student_paste_preview.dart';
 import '../../providers/academic_providers.dart';
 import '../../providers/classes_providers.dart';
 import '../../providers/lessons_providers.dart';
@@ -50,6 +53,15 @@ class _ClassDetailScreenState extends ConsumerState<ClassDetailScreen> with Sing
       vsync: this,
       initialIndex: widget.initialTabIndex?.clamp(0, 4) ?? 0,
     );
+  }
+
+  @override
+  void didUpdateWidget(covariant ClassDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final next = widget.initialTabIndex;
+    if (next != null && next != _tabController.index) {
+      _tabController.index = next.clamp(0, 4);
+    }
   }
 
   @override
@@ -515,10 +527,24 @@ class _EnrollmentsTab extends ConsumerWidget {
     final enrollmentsAsync = ref.watch(enrollmentsProvider(classId));
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openEnrollDialog(context, ref),
-        icon: const Icon(Icons.person_add_alt_1_rounded),
-        label: const Text('Matricular'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'class_enroll_bulk_paste',
+            onPressed: () => _openBulkPasteAndEnrollDialog(context, ref),
+            icon: const Icon(Icons.content_paste_go_rounded),
+            label: const Text('Colar lista'),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'class_enroll_select',
+            onPressed: () => _openEnrollDialog(context, ref),
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+            label: const Text('Matricular'),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(enrollmentsProvider(classId)),
@@ -571,6 +597,136 @@ class _EnrollmentsTab extends ConsumerWidget {
     );
     if (confirm == true) {
       await ref.read(classesActionsProvider).unenroll(classId, enrollment.studentId);
+    }
+  }
+
+  /// Cola lista → pré-visualiza → confirma seleção → cadastra novos e matricula.
+  Future<void> _openBulkPasteAndEnrollDialog(BuildContext parentContext, WidgetRef ref) async {
+    final text = await showDialog<String>(
+      context: parentContext,
+      useRootNavigator: true,
+      builder: (_) => const _ClassPasteListDialog(),
+    );
+    if (text == null || text.isEmpty || !parentContext.mounted) return;
+
+    // Evita abrir o próximo diálogo enquanto a rota anterior ainda está na árvore.
+    await Future<void>.delayed(Duration.zero);
+    if (!parentContext.mounted) return;
+
+    var loadingOpen = true;
+    showDialog<void>(
+      context: parentContext,
+      useRootNavigator: true,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: Center(child: CircularProgressIndicator()),
+      ),
+    );
+
+    void closeLoading() {
+      if (!loadingOpen || !parentContext.mounted) return;
+      Navigator.of(parentContext, rootNavigator: true).pop();
+      loadingOpen = false;
+    }
+
+    try {
+      final preview = await ref.read(studentsActionsProvider).previewPaste(text: text);
+      closeLoading();
+      if (!parentContext.mounted) return;
+
+      if (preview.candidates.isEmpty) {
+        final skippedInfo = preview.skipped.isEmpty
+            ? ''
+            : ' (${preview.skipped.length} linha(s) ignorada(s))';
+        ScaffoldMessenger.of(parentContext).showSnackBar(
+          SnackBar(content: Text('Nenhum aluno válido encontrado$skippedInfo')),
+        );
+        return;
+      }
+
+      final enrolled = ref.read(enrollmentsProvider(classId)).valueOrNull ?? const <Enrollment>[];
+      final enrolledIds = enrolled.where((e) => e.isActive).map((e) => e.studentId).toSet();
+
+      final selected = await showDialog<List<StudentPasteCandidate>>(
+        context: parentContext,
+        useRootNavigator: true,
+        builder: (_) => _ClassPasteConfirmDialog(
+          preview: preview,
+          enrolledIds: enrolledIds,
+        ),
+      );
+      if (selected == null || selected.isEmpty || !parentContext.mounted) return;
+
+      await _commitPasteSelection(parentContext, ref, selected, preview.skipped.length);
+    } catch (e) {
+      closeLoading();
+      if (!parentContext.mounted) return;
+      final detail = e is AppException ? e.displayMessage : e.toString();
+      ScaffoldMessenger.of(parentContext).showSnackBar(
+        SnackBar(content: Text('Erro ao processar lista: $detail')),
+      );
+    }
+  }
+
+  Future<void> _commitPasteSelection(
+    BuildContext parentContext,
+    WidgetRef ref,
+    List<StudentPasteCandidate> selected,
+    int skippedLines,
+  ) async {
+    try {
+      final newOnes = selected.where((c) => c.isNew).toList();
+      final existingIds = selected
+          .where((c) => c.isExisting && c.student != null)
+          .map((c) => c.student!.id)
+          .toList();
+
+      final created = newOnes.isEmpty
+          ? const <Student>[]
+          : await ref.read(studentsActionsProvider).createBatch(
+                newOnes
+                    .map(
+                      (c) => (
+                        name: c.name,
+                        registryCode: c.registryCode,
+                        email: c.email,
+                        phone: c.phone,
+                        notes: c.notes,
+                      ),
+                    )
+                    .toList(),
+              );
+
+      final idsToEnroll = <String>[
+        ...existingIds,
+        ...created.map((s) => s.id),
+      ];
+
+      var enrolled = 0;
+      var enrollSkipped = 0;
+      if (idsToEnroll.isNotEmpty) {
+        final enrollResult = await ref.read(classesActionsProvider).bulkEnroll(classId, idsToEnroll);
+        enrolled = enrollResult.totalEnrolled;
+        enrollSkipped = enrollResult.skipped;
+      }
+
+      if (!parentContext.mounted) return;
+      final parts = <String>[
+        if (enrolled > 0) '$enrolled aluno(s) adicionado(s) à turma',
+        if (created.isNotEmpty) '${created.length} cadastrado(s)',
+        if (skippedLines > 0) '$skippedLines linha(s) ignorada(s)',
+        if (enrollSkipped > 0) '$enrollSkipped matrícula(s) ignorada(s)',
+      ];
+      ScaffoldMessenger.of(parentContext).showSnackBar(
+        SnackBar(content: Text(parts.isEmpty ? 'Nenhuma alteração realizada' : parts.join(' · '))),
+      );
+    } catch (e) {
+      if (!parentContext.mounted) return;
+      final detail = e is AppException ? e.displayMessage : e.toString();
+      ScaffoldMessenger.of(parentContext).showSnackBar(
+        SnackBar(content: Text('Erro ao adicionar à turma: $detail')),
+      );
     }
   }
 
@@ -691,5 +847,247 @@ class _EnrollmentsTab extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao matricular: $e')));
       }
     }
+  }
+}
+
+/// Diálogo de colar lista — dono do [TextEditingController] (evita dispose prematuro).
+class _ClassPasteListDialog extends StatefulWidget {
+  const _ClassPasteListDialog();
+
+  @override
+  State<_ClassPasteListDialog> createState() => _ClassPasteListDialogState();
+}
+
+class _ClassPasteListDialogState extends State<_ClassPasteListDialog> {
+  final _textController = TextEditingController();
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final pasted = _textController.text.trim();
+    if (pasted.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cole ao menos um nome ou registro.')),
+      );
+      return;
+    }
+    Navigator.of(context).pop(pasted);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Colar lista e matricular'),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Cole um nome por linha, ou registros no formato Matrícula;Nome;E-mail… '
+                'Se alguma matrícula já existir, você poderá confirmar quem entra nesta turma.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Exemplos:\n'
+                'Ana Souza\n'
+                '2026002;Bruno Lima;bruno@escola.com\n'
+                'Matrícula;Nome;E-mail\n'
+                '2026003;Carla Mendes;carla@escola.com',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _textController,
+                minLines: 10,
+                maxLines: 16,
+                decoration: const InputDecoration(
+                  alignLabelWithHint: true,
+                  labelText: 'Lista colada',
+                  hintText: 'Cole aqui os nomes ou registros…',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton.icon(
+          onPressed: _submit,
+          icon: const Icon(Icons.preview_outlined),
+          label: const Text('Continuar'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Confirmação com checkboxes dos candidatos resolvidos pela lista colada.
+class _ClassPasteConfirmDialog extends StatefulWidget {
+  const _ClassPasteConfirmDialog({
+    required this.preview,
+    required this.enrolledIds,
+  });
+
+  final StudentPastePreview preview;
+  final Set<String> enrolledIds;
+
+  @override
+  State<_ClassPasteConfirmDialog> createState() => _ClassPasteConfirmDialogState();
+}
+
+class _ClassPasteConfirmDialogState extends State<_ClassPasteConfirmDialog> {
+  late final Set<String> _selectedKeys;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedKeys = {
+      for (final c in widget.preview.candidates)
+        if (!_alreadyInClass(c)) c.key,
+    };
+  }
+
+  bool _alreadyInClass(StudentPasteCandidate candidate) =>
+      candidate.isExisting &&
+      candidate.student != null &&
+      widget.enrolledIds.contains(candidate.student!.id);
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = widget.preview;
+    final selectable = preview.candidates.where((c) => !_alreadyInClass(c)).toList();
+    final allSelected = selectable.isNotEmpty && _selectedKeys.length == selectable.length;
+
+    return AlertDialog(
+      title: const Text('Confirmar alunos na turma'),
+      content: SizedBox(
+        width: 560,
+        height: 460,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              preview.totalExisting > 0
+                  ? 'Algumas matrículas já estão cadastradas. Confirme quem deve ser adicionado a esta turma.'
+                  : 'Confirme os alunos que devem ser adicionados a esta turma.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            if (preview.skipped.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                '${preview.skipped.length} linha(s) ignorada(s) na análise.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                TextButton(
+                  onPressed: selectable.isEmpty
+                      ? null
+                      : () => setState(() {
+                            if (allSelected) {
+                              _selectedKeys.clear();
+                            } else {
+                              _selectedKeys
+                                ..clear()
+                                ..addAll(selectable.map((c) => c.key));
+                            }
+                          }),
+                  child: Text(allSelected ? 'Limpar seleção' : 'Selecionar todos'),
+                ),
+                const Spacer(),
+                Text(
+                  '${_selectedKeys.length} selecionado(s)',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+            const Divider(),
+            Expanded(
+              child: ListView.builder(
+                itemCount: preview.candidates.length,
+                itemBuilder: (context, index) {
+                  final candidate = preview.candidates[index];
+                  final alreadyInClass = _alreadyInClass(candidate);
+                  final checked = _selectedKeys.contains(candidate.key);
+                  final statusLabel = alreadyInClass
+                      ? 'Já matriculado nesta turma'
+                      : candidate.isExisting
+                          ? 'Já cadastrado — será matriculado'
+                          : 'Novo — será cadastrado e matriculado';
+                  final subtitleParts = <String>[
+                    if (candidate.registryCode != null && candidate.registryCode!.isNotEmpty)
+                      'Matrícula ${candidate.registryCode}',
+                    statusLabel,
+                  ];
+
+                  return CheckboxListTile(
+                    key: ValueKey(candidate.key),
+                    value: alreadyInClass ? false : checked,
+                    onChanged: alreadyInClass
+                        ? null
+                        : (value) => setState(() {
+                              if (value == true) {
+                                _selectedKeys.add(candidate.key);
+                              } else {
+                                _selectedKeys.remove(candidate.key);
+                              }
+                            }),
+                    title: Text(candidate.name),
+                    subtitle: Text(subtitleParts.join(' · ')),
+                    secondary: Icon(
+                      candidate.isExisting ? Icons.badge_outlined : Icons.person_add_alt_1_outlined,
+                      color: alreadyInClass
+                          ? Theme.of(context).disabledColor
+                          : Theme.of(context).colorScheme.primary,
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton.icon(
+          onPressed: _selectedKeys.isEmpty
+              ? null
+              : () {
+                  final chosen =
+                      preview.candidates.where((c) => _selectedKeys.contains(c.key)).toList();
+                  Navigator.of(context).pop(chosen);
+                },
+          icon: const Icon(Icons.group_add_rounded),
+          label: Text(
+            _selectedKeys.isEmpty
+                ? 'Adicionar à turma'
+                : 'Adicionar à turma (${_selectedKeys.length})',
+          ),
+        ),
+      ],
+    );
   }
 }

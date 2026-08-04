@@ -25,6 +25,14 @@ export interface StudentRepository {
   create(input: CreateStudentInput): Promise<Student>;
   createMany(inputs: CreateStudentInput[]): Promise<Student[]>;
   findById(teacherId: string, id: string): Promise<Student | null>;
+  /** Aluno ativo com a mesma matrícula (comparação case-insensitive). */
+  findByRegistryCode(
+    teacherId: string,
+    registryCode: string,
+    excludeId?: string,
+  ): Promise<Student | null>;
+  /** Matrículas ativas do professor (para checagem em lote). */
+  listActiveRegistryCodes(teacherId: string): Promise<string[]>;
   list(teacherId: string, filters?: ListStudentsFilters): Promise<Student[]>;
   update(teacherId: string, id: string, input: UpdateStudentInput): Promise<Student>;
   softDelete(teacherId: string, id: string): Promise<void>;

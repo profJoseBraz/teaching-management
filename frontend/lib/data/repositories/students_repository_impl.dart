@@ -1,5 +1,6 @@
 import '../../domain/entities/bulk_create_students_result.dart';
 import '../../domain/entities/student.dart';
+import '../../domain/entities/student_paste_preview.dart';
 import '../../domain/repositories/students_repository.dart';
 import '../datasources/students_datasource.dart';
 
@@ -33,6 +34,22 @@ class StudentsRepositoryImpl implements StudentsRepository {
   @override
   Future<BulkCreateStudentsResult> bulkCreateStudents({required String text}) =>
       _datasource.bulkCreateStudents(text: text);
+
+  @override
+  Future<StudentPastePreview> previewStudentPaste({required String text}) =>
+      _datasource.previewStudentPaste(text: text);
+
+  @override
+  Future<List<Student>> createStudentsBatch(
+    List<({
+      String name,
+      String? registryCode,
+      String? email,
+      String? phone,
+      String? notes,
+    })> students,
+  ) =>
+      _datasource.createStudentsBatch(students);
 
   @override
   Future<Student> updateStudent(

@@ -62,6 +62,36 @@ export class PrismaStudentRepository implements StudentRepository {
     return row ? mapStudent(row) : null;
   }
 
+  async findByRegistryCode(
+    teacherId: string,
+    registryCode: string,
+    excludeId?: string,
+  ): Promise<Student | null> {
+    const row = await prisma.student.findFirst({
+      where: {
+        teacherId,
+        deletedAt: null,
+        registryCode: { equals: registryCode, mode: 'insensitive' },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+    });
+    return row ? mapStudent(row) : null;
+  }
+
+  async listActiveRegistryCodes(teacherId: string): Promise<string[]> {
+    const rows = await prisma.student.findMany({
+      where: {
+        teacherId,
+        deletedAt: null,
+        registryCode: { not: null },
+      },
+      select: { registryCode: true },
+    });
+    return rows
+      .map((row) => row.registryCode)
+      .filter((code): code is string => Boolean(code));
+  }
+
   async list(teacherId: string, filters?: ListStudentsFilters): Promise<Student[]> {
     const rows = await prisma.student.findMany({
       where: {

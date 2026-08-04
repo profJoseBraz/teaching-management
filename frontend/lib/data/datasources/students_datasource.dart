@@ -1,6 +1,7 @@
 import '../../core/network/api_client.dart';
 import '../../domain/entities/bulk_create_students_result.dart';
 import '../../domain/entities/student.dart';
+import '../../domain/entities/student_paste_preview.dart';
 
 Student studentFromJson(Map<String, dynamic> json) => Student(
       id: json['id'] as String,
@@ -29,6 +30,45 @@ BulkCreateStudentsResult bulkCreateResultFromJson(Map<String, dynamic> json) {
     skipped: skipped,
     totalParsed: json['totalParsed'] as int? ?? created.length,
     totalCreated: json['totalCreated'] as int? ?? created.length,
+  );
+}
+
+StudentPastePreview studentPastePreviewFromJson(Map<String, dynamic> json) {
+  final candidates = (json['candidates'] as List? ?? []).map((e) {
+    final row = e as Map<String, dynamic>;
+    final statusRaw = row['status'] as String? ?? 'NEW';
+    final studentJson = row['student'] as Map<String, dynamic>?;
+    return StudentPasteCandidate(
+      key: row['key'] as String,
+      lineNumber: row['lineNumber'] as int? ?? 0,
+      line: row['line'] as String? ?? '',
+      name: row['name'] as String? ?? '',
+      registryCode: row['registryCode'] as String?,
+      email: row['email'] as String?,
+      phone: row['phone'] as String?,
+      notes: row['notes'] as String?,
+      status: statusRaw == 'EXISTING'
+          ? StudentPasteCandidateStatus.existing
+          : StudentPasteCandidateStatus.isNew,
+      student: studentJson == null ? null : studentFromJson(studentJson),
+    );
+  }).toList();
+
+  final skipped = (json['skipped'] as List? ?? []).map((e) {
+    final row = e as Map<String, dynamic>;
+    return StudentPasteSkippedRow(
+      lineNumber: row['lineNumber'] as int? ?? 0,
+      line: row['line'] as String? ?? '',
+      reason: row['reason'] as String? ?? '',
+    );
+  }).toList();
+
+  return StudentPastePreview(
+    candidates: candidates,
+    skipped: skipped,
+    totalParsed: json['totalParsed'] as int? ?? 0,
+    totalExisting: json['totalExisting'] as int? ?? 0,
+    totalNew: json['totalNew'] as int? ?? 0,
   );
 }
 
@@ -68,6 +108,36 @@ class StudentsDatasource {
   Future<BulkCreateStudentsResult> bulkCreateStudents({required String text}) async {
     final response = await _apiClient.post('/students/bulk', data: {'text': text});
     return bulkCreateResultFromJson(response['data'] as Map<String, dynamic>);
+  }
+
+  Future<StudentPastePreview> previewStudentPaste({required String text}) async {
+    final response = await _apiClient.post('/students/bulk/preview', data: {'text': text});
+    return studentPastePreviewFromJson(response['data'] as Map<String, dynamic>);
+  }
+
+  Future<List<Student>> createStudentsBatch(
+    List<({
+      String name,
+      String? registryCode,
+      String? email,
+      String? phone,
+      String? notes,
+    })> students,
+  ) async {
+    final response = await _apiClient.post('/students/batch', data: {
+      'students': students
+          .map(
+            (s) => {
+              'name': s.name,
+              'registryCode': s.registryCode,
+              'email': s.email,
+              'phone': s.phone,
+              'notes': s.notes,
+            },
+          )
+          .toList(),
+    });
+    return (response['data'] as List).map((e) => studentFromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<Student> updateStudent(

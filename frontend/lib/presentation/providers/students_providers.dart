@@ -4,6 +4,7 @@ import '../../data/datasources/students_datasource.dart';
 import '../../data/repositories/students_repository_impl.dart';
 import '../../domain/entities/bulk_create_students_result.dart';
 import '../../domain/entities/student.dart';
+import '../../domain/entities/student_paste_preview.dart';
 import '../../domain/repositories/students_repository.dart';
 import 'session_providers.dart';
 
@@ -49,6 +50,24 @@ class StudentsActions {
     final result = await _repo.bulkCreateStudents(text: text);
     _ref.invalidate(studentsListProvider);
     return result;
+  }
+
+  Future<StudentPastePreview> previewPaste({required String text}) {
+    return _repo.previewStudentPaste(text: text);
+  }
+
+  Future<List<Student>> createBatch(
+    List<({
+      String name,
+      String? registryCode,
+      String? email,
+      String? phone,
+      String? notes,
+    })> students,
+  ) async {
+    final created = await _repo.createStudentsBatch(students);
+    _ref.invalidate(studentsListProvider);
+    return created;
   }
 
   Future<void> update(

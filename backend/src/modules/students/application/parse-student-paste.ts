@@ -7,6 +7,7 @@ export type ParsedStudentRow = {
   phone?: string;
   notes?: string;
   lineNumber: number;
+  line: string;
 };
 
 export type ParseStudentPasteResult = {
@@ -185,6 +186,7 @@ export function parseStudentPasteText(text: string): ParseStudentPasteResult {
       phone,
       notes,
       lineNumber,
+      line,
     });
   }
 

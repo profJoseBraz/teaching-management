@@ -240,7 +240,7 @@ Uma turma pode ganhar/perder disciplinas ao longo do tempo sem apagar o históri
 já lançadas para uma disciplina removida.
 
 #### Student
-- `id`, `teacherId`, `name`, `registryCode?`, `email?`, `phone?`, `notes?`
+- `id`, `teacherId`, `name`, `registryCode?` (único por professor entre ativos, case-insensitive), `email?`, `phone?`, `notes?`
 
 #### Enrollment
 - `id`, `teacherId`, `classId`, `studentId`, `status`: ACTIVE | WITHDRAWN  
@@ -267,14 +267,15 @@ Unique `(classId, studentId)`.
 Unique `(lessonId, studentId)`.
 
 #### Activity
-- `id`, `teacherId`, `classId`, `disciplineId`, `originLessonId`, `assessmentPeriodId?`
-- `title`, `description?`
+- `id`, `teacherId`, `classId`, `disciplineId`, `originLessonId?`, `assessmentPeriodId?`
+- `title` (até 200), `description?` (VARCHAR 5000, Markdown), `tag?` (VARCHAR 80, agrupamento)
 - `category`: EXERCISE | ASSIGNMENT | PROJECT | RESEARCH | SEMINAR | EXAM | OTHER
 - `mode`: INDIVIDUAL | GROUP
 - `maxScore` (default 100)
 - `createdOn`, `dueDate`
-- `disciplineId` é herdado de `originLessonId.disciplineId` quando omitido na criação; se informado,
-  deve ser idêntico ao da aula de origem e vinculado (`ClassDiscipline` ativo) à turma.
+- `originLessonId` é opcional. Sem aula de origem, `disciplineId` é obrigatório na criação.
+  Com aula de origem, `disciplineId` pode ser omitido (herda da aula) ou informado se for idêntico
+  ao da aula e estiver vinculado (`ClassDiscipline` ativo) à turma.
 - `gradeMode` (quando GROUP): SHARED | INDIVIDUAL  
   — SHARED: mesma nota para o grupo; INDIVIDUAL: nota por aluno mesmo em grupo.
 
@@ -320,7 +321,10 @@ Unique `(activityId, studentId)`.
 17. Lançar frequência marca a aula como `attendanceCompleted = true` quando todos os alunos ativos tiverem registro (ou quando o professor confirmar “concluir chamada”).
 
 ### Atividades e entregas
-18. Atividade nasce em uma aula (`originLessonId`), mas vive além dela (`dueDate`); sua `disciplineId` é herdada da aula de origem (ou validada como idêntica, se informada) e deve estar vinculada à turma.
+18. Atividade pode opcionalmente ligar-se a uma aula (`originLessonId`); vive além dela via `dueDate`.
+   Sem aula de origem, `disciplineId` é obrigatório; com aula, a disciplina é herdada ou validada
+   como idêntica à da aula e deve estar vinculada à turma. Insights que cruzam ausência na aula de
+   origem só consideram atividades com `originLessonId`.
 19. Ao criar atividade, gerar `Submission PENDING` para cada aluno ativo da turma (individual) ou conforme grupos.
 20. Nota não pode exceder `maxScore` nem ser negativa.
 21. Em GROUP + SHARED, aplicar a mesma nota a todos os membros do grupo.
@@ -353,6 +357,7 @@ Unique `(activityId, studentId)`.
 
 ### Students & classes
 - `CreateStudent` / `UpdateStudent` / `ListStudents` / `GetStudent`
+- `PreviewStudentPaste` / `CreateStudentsBatch` / `BulkCreateStudents`
 - `CreateClass` (recebe `disciplineIds: string[]`) / `UpdateClass` / `ListClasses` (filtro por `disciplineId`) / `GetClass` / `ArchiveClass`
 - `LinkDisciplineToClass` / `UnlinkDisciplineFromClass` / `ListClassDisciplines`
 - `EnrollStudent` / `UnenrollStudent` / `ListClassStudents`
@@ -371,7 +376,7 @@ Unique `(activityId, studentId)`.
 
 ### Activities
 - `CreateActivity` (gera submissions; `disciplineId` herdado da aula de origem se omitido)
-- `UpdateActivity`
+- `UpdateActivity` / `SoftDeleteActivity`
 - `CreateActivityGroups` / `AssignStudentsToGroup`
 - `UpdateSubmissionStatus` (PENDING ↔ SUBMITTED)
 - `GradeSubmission`

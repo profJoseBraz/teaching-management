@@ -20,6 +20,24 @@ export const bulkCreateStudentsSchema = z.object({
   text: z.string().trim().min(1).max(200_000),
 });
 
+/** Mesmo contrato de texto do bulk — só resolve, sem gravar. */
+export const previewStudentPasteSchema = bulkCreateStudentsSchema;
+
+export const createStudentsBatchSchema = z.object({
+  students: z
+    .array(
+      z.object({
+        name: z.string().trim().min(2).max(160),
+        registryCode: z.string().trim().max(60).nullish(),
+        email: z.email().nullish(),
+        phone: z.string().trim().max(40).nullish(),
+        notes: z.string().trim().max(4000).nullish(),
+      }),
+    )
+    .min(1)
+    .max(500),
+});
+
 export const updateStudentSchema = z
   .object({
     name: z.string().trim().min(2).max(160),

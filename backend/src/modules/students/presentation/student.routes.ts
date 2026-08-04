@@ -6,8 +6,10 @@ import type { StudentController } from './student.controller';
 import {
   bulkCreateStudentsSchema,
   createStudentSchema,
+  createStudentsBatchSchema,
   idParamSchema,
   listStudentsQuerySchema,
+  previewStudentPasteSchema,
   updateStudentSchema,
 } from './student.schemas';
 
@@ -22,9 +24,19 @@ export function createStudentRoutes(
   router.get('/students', validate(listStudentsQuerySchema, 'query'), asyncHandler(controller.list));
   router.post('/students', validate(createStudentSchema), asyncHandler(controller.create));
   router.post(
+    '/students/bulk/preview',
+    validate(previewStudentPasteSchema),
+    asyncHandler(controller.previewPaste),
+  );
+  router.post(
     '/students/bulk',
     validate(bulkCreateStudentsSchema),
     asyncHandler(controller.bulkCreate),
+  );
+  router.post(
+    '/students/batch',
+    validate(createStudentsBatchSchema),
+    asyncHandler(controller.createBatch),
   );
   router.get(
     '/students/:id',

@@ -500,10 +500,16 @@ export const openApiDocument = {
           id: { type: 'string', format: 'uuid' },
           classId: { type: 'string', format: 'uuid' },
           disciplineId: { type: 'string', format: 'uuid' },
-          originLessonId: { type: 'string', format: 'uuid' },
+          originLessonId: { type: 'string', format: 'uuid', nullable: true },
           assessmentPeriodId: { type: 'string', format: 'uuid', nullable: true },
           title: { type: 'string' },
           description: { type: 'string', nullable: true },
+          tag: {
+            type: 'string',
+            nullable: true,
+            maxLength: 80,
+            description: 'Rótulo livre opcional para agrupar atividades (ex.: "Prova 1").',
+          },
           category: {
             type: 'string',
             enum: ['EXERCISE', 'ASSIGNMENT', 'PROJECT', 'RESEARCH', 'SEMINAR', 'EXAM', 'OTHER'],
@@ -653,18 +659,34 @@ export const openApiDocument = {
       },
       CreateActivityRequest: {
         type: 'object',
-        required: ['originLessonId', 'title', 'dueDate'],
+        required: ['title', 'dueDate'],
         properties: {
-          originLessonId: { type: 'string', format: 'uuid' },
+          originLessonId: {
+            type: 'string',
+            format: 'uuid',
+            nullable: true,
+            description: 'Opcional — atividade pode existir sem aula de origem.',
+          },
           disciplineId: {
             type: 'string',
             format: 'uuid',
             description:
-              'Opcional — quando ausente, herda a disciplina de `originLessonId`. Quando informado, deve coincidir com a disciplina da aula de origem e estar vinculado à turma.',
+              'Obrigatório quando `originLessonId` está ausente. Com aula de origem, pode ser omitido (herda da aula) ou informado se coincidir com a disciplina da aula e estiver vinculado à turma.',
           },
           assessmentPeriodId: { type: 'string', format: 'uuid', nullable: true },
-          title: { type: 'string' },
-          description: { type: 'string', nullable: true },
+          title: { type: 'string', maxLength: 200 },
+          description: {
+            type: 'string',
+            nullable: true,
+            maxLength: 5000,
+            description: 'Markdown (negrito, itálico, títulos, listas). Armazenado como texto bruto.',
+          },
+          tag: {
+            type: 'string',
+            nullable: true,
+            maxLength: 80,
+            description: 'Rótulo livre opcional para agrupar atividades.',
+          },
           category: {
             type: 'string',
             enum: ['EXERCISE', 'ASSIGNMENT', 'PROJECT', 'RESEARCH', 'SEMINAR', 'EXAM', 'OTHER'],
@@ -680,8 +702,19 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           assessmentPeriodId: { type: 'string', format: 'uuid', nullable: true },
-          title: { type: 'string' },
-          description: { type: 'string', nullable: true },
+          title: { type: 'string', maxLength: 200 },
+          description: {
+            type: 'string',
+            nullable: true,
+            maxLength: 5000,
+            description: 'Markdown (negrito, itálico, títulos, listas). Armazenado como texto bruto.',
+          },
+          tag: {
+            type: 'string',
+            nullable: true,
+            maxLength: 80,
+            description: 'Rótulo livre opcional para agrupar atividades. Envie null ou "" para remover.',
+          },
           category: {
             type: 'string',
             enum: ['EXERCISE', 'ASSIGNMENT', 'PROJECT', 'RESEARCH', 'SEMINAR', 'EXAM', 'OTHER'],
@@ -1395,6 +1428,108 @@ export const openApiDocument = {
               },
             },
           },
+          '409': {
+            description: 'Matrícula já cadastrada para este professor',
+          },
+        },
+      },
+    },
+    '/students/bulk/preview': {
+      post: {
+        tags: ['Students'],
+        summary: 'Pré-visualizar lista colada (sem gravar)',
+        description:
+          'Resolve o texto colado em candidatos NEW/EXISTING pela matrícula, para confirmação na UI antes de matricular na turma.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['text'],
+                properties: { text: { type: 'string', maxLength: 200000 } },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Candidatos e linhas ignoradas',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'object',
+                      properties: {
+                        candidates: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              key: { type: 'string' },
+                              lineNumber: { type: 'integer' },
+                              line: { type: 'string' },
+                              name: { type: 'string' },
+                              registryCode: { type: 'string', nullable: true },
+                              status: { type: 'string', enum: ['NEW', 'EXISTING'] },
+                              student: { $ref: '#/components/schemas/Student', nullable: true },
+                            },
+                          },
+                        },
+                        skipped: { type: 'array', items: { type: 'object' } },
+                        totalParsed: { type: 'integer' },
+                        totalExisting: { type: 'integer' },
+                        totalNew: { type: 'integer' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/students/batch': {
+      post: {
+        tags: ['Students'],
+        summary: 'Criar alunos em lote (lista estruturada)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['students'],
+                properties: {
+                  students: {
+                    type: 'array',
+                    minItems: 1,
+                    maxItems: 500,
+                    items: { $ref: '#/components/schemas/CreateStudentRequest' },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Alunos criados',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { data: { type: 'array', items: { $ref: '#/components/schemas/Student' } } },
+                },
+              },
+            },
+          },
+          '409': { description: 'Matrícula duplicada' },
         },
       },
     },
@@ -1440,6 +1575,9 @@ export const openApiDocument = {
           '404': {
             description: 'Aluno não encontrado',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '409': {
+            description: 'Matrícula já cadastrada para este professor',
           },
         },
       },
@@ -2083,6 +2221,12 @@ export const openApiDocument = {
         parameters: [
           { name: 'classId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
           { name: 'disciplineId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          {
+            name: 'tag',
+            in: 'query',
+            schema: { type: 'string', maxLength: 80 },
+            description: 'Filtra atividades com esta tag (comparação case-insensitive).',
+          },
         ],
         responses: {
           '200': {
@@ -2111,7 +2255,10 @@ export const openApiDocument = {
         },
         responses: {
           '201': { description: 'Atividade criada' },
-          '422': { description: 'originLessonId não pertence à turma' },
+          '422': {
+            description:
+              'Validação (ex.: originLessonId de outra turma; disciplineId ausente sem aula de origem)',
+          },
         },
       },
     },
@@ -2145,6 +2292,18 @@ export const openApiDocument = {
           content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateActivityRequest' } } },
         },
         responses: { '200': { description: 'Atividade atualizada' }, '404': { description: 'Não encontrada' } },
+      },
+      delete: {
+        tags: ['Activities'],
+        summary: 'Excluir atividade (soft delete)',
+        description:
+          'Marca a atividade como excluída (`deletedAt`), junto com submissions e grupos vinculados. Não remove histórico físico.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          '204': { description: 'Atividade excluída' },
+          '404': { description: 'Não encontrada' },
+        },
       },
     },
     '/activities/{id}/groups': {

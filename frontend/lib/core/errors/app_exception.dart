@@ -31,6 +31,9 @@ class AppException implements Exception {
   final int? statusCode;
   final Object? details;
 
+  /// Mensagem amigável para SnackBars e UI.
+  String get displayMessage => message;
+
   @override
-  String toString() => 'AppException($code): $message';
+  String toString() => message;
 }

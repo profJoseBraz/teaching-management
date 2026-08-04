@@ -100,14 +100,14 @@ Guia completo: [`frontend/README.md`](frontend/README.md)
 - Academic (anos, cursos, disciplinas, períodos avaliativos)
 - Students + Classes + Enrollments
 - Lessons + Contents + Attendance
-- Activities + Submissions + Groups + grading
+- Activities + Submissions + Groups + grading (descrição Markdown, tag para agrupar)
 - Insights Engine + Dashboard
 - Reports (P0 + P1)
 
 ### Frontend
 - Login + shell responsivo
 - Dashboard com AttentionItems
-- Turmas (hub: aulas, frequência, conteúdos, atividades, alunos)
+- Turmas (hub: aulas, frequência, conteúdos, atividades, alunos — colar lista já matricula)
 - Alunos, Relatórios, Configurações (CRUD acadêmico + tema)
 
 ## Arquitetura
