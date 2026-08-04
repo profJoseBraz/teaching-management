@@ -4,6 +4,7 @@ import type { AuthMiddleware } from '../../../shared/http/auth.middleware';
 import { validate } from '../../../shared/http/validate';
 import type { LessonController } from './lesson.controller';
 import {
+  bulkCreateLessonsSchema,
   classIdParamSchema,
   createLessonSchema,
   lessonIdParamSchema,
@@ -22,6 +23,12 @@ export function createLessonRoutes(controller: LessonController, authMiddleware:
     validate(classIdParamSchema, 'params'),
     validate(listLessonsQuerySchema, 'query'),
     asyncHandler(controller.list),
+  );
+  router.post(
+    '/classes/:classId/lessons/bulk',
+    validate(classIdParamSchema, 'params'),
+    validate(bulkCreateLessonsSchema),
+    asyncHandler(controller.bulkCreate),
   );
   router.post(
     '/classes/:classId/lessons',

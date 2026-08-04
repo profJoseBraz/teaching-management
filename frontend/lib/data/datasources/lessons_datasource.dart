@@ -52,6 +52,25 @@ class LessonsDatasource {
     return lessonFromJson(response['data'] as Map<String, dynamic>);
   }
 
+  Future<({int totalCreated})> bulkCreateLessons(
+    String classId, {
+    required String disciplineId,
+    required List<DateTime> dates,
+    required String startTime,
+    required String endTime,
+    String? observations,
+  }) async {
+    final response = await _apiClient.post('/classes/$classId/lessons/bulk', data: {
+      'disciplineId': disciplineId,
+      'dates': dates.map(_formatDate).toList(),
+      'startTime': startTime,
+      'endTime': endTime,
+      if (observations != null) 'observations': observations,
+    });
+    final data = response['data'] as Map<String, dynamic>;
+    return (totalCreated: data['totalCreated'] as int? ?? 0);
+  }
+
   Future<Lesson> updateLesson(
     String id, {
     DateTime? date,

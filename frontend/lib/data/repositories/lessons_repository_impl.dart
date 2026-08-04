@@ -33,6 +33,24 @@ class LessonsRepositoryImpl implements LessonsRepository {
       );
 
   @override
+  Future<({int totalCreated})> bulkCreateLessons(
+    String classId, {
+    required String disciplineId,
+    required List<DateTime> dates,
+    required String startTime,
+    required String endTime,
+    String? observations,
+  }) =>
+      _datasource.bulkCreateLessons(
+        classId,
+        disciplineId: disciplineId,
+        dates: dates,
+        startTime: startTime,
+        endTime: endTime,
+        observations: observations,
+      );
+
+  @override
   Future<Lesson> updateLesson(
     String id, {
     DateTime? date,

@@ -9,6 +9,7 @@ import '../../../core/widgets/status_chip.dart';
 import '../../../domain/entities/lesson.dart';
 import '../../../domain/entities/school_class.dart';
 import '../../providers/lessons_providers.dart';
+import 'bulk_lessons_dialog.dart';
 
 final _dateFormat = DateFormat('dd/MM/yyyy');
 
@@ -36,10 +37,24 @@ class LessonsTab extends ConsumerWidget {
     final disciplineNames = {for (final d in disciplines) d.id: d.name};
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openLessonDialog(context, ref),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Nova aula'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'bulk_lessons_$classId',
+            tooltip: 'Cadastrar várias aulas',
+            onPressed: () => _openBulkLessonsDialog(context, ref),
+            child: const Icon(Icons.calendar_month_outlined),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'new_lesson_$classId',
+            onPressed: () => _openLessonDialog(context, ref),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Nova aula'),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(lessonsListProvider(query)),
@@ -113,6 +128,41 @@ class LessonsTab extends ConsumerWidget {
     );
     if (confirm == true) {
       await ref.read(lessonsActionsProvider).delete(lesson.id, classId: classId);
+    }
+  }
+
+  Future<void> _openBulkLessonsDialog(BuildContext context, WidgetRef ref) async {
+    if (disciplines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vincule ao menos uma disciplina a esta turma antes de cadastrar aulas.')),
+      );
+      return;
+    }
+
+    final draft = await showDialog<BulkLessonsDraft>(
+      context: context,
+      builder: (context) => BulkLessonsDialog(disciplines: disciplines),
+    );
+    if (draft == null || !context.mounted) return;
+
+    try {
+      final result = await ref.read(lessonsActionsProvider).bulkCreate(
+            classId,
+            disciplineId: draft.disciplineId,
+            dates: draft.dates,
+            startTime: draft.startTime,
+            endTime: draft.endTime,
+            observations: draft.observations,
+          );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${result.totalCreated} aula(s) cadastrada(s).')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao cadastrar aulas: $e')));
+      }
     }
   }
 

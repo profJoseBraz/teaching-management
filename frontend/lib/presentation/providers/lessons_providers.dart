@@ -58,6 +58,26 @@ class LessonsActions {
     return lesson;
   }
 
+  Future<({int totalCreated})> bulkCreate(
+    String classId, {
+    required String disciplineId,
+    required List<DateTime> dates,
+    required String startTime,
+    required String endTime,
+    String? observations,
+  }) async {
+    final result = await _repo.bulkCreateLessons(
+      classId,
+      disciplineId: disciplineId,
+      dates: dates,
+      startTime: startTime,
+      endTime: endTime,
+      observations: observations,
+    );
+    _ref.invalidate(lessonsListProvider);
+    return result;
+  }
+
   Future<void> update(
     String id, {
     required String classId,

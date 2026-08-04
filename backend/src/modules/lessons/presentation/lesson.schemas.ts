@@ -25,6 +25,14 @@ export const createLessonSchema = z.object({
   observations: z.string().trim().max(2000).nullish(),
 });
 
+export const bulkCreateLessonsSchema = z.object({
+  disciplineId: z.uuid(),
+  dates: z.array(z.coerce.date()).min(1).max(200),
+  startTime: timeSchema,
+  endTime: timeSchema,
+  observations: z.string().trim().max(2000).nullish(),
+});
+
 export const updateLessonSchema = z
   .object({
     date: z.coerce.date().optional(),

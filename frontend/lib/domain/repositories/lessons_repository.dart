@@ -11,6 +11,14 @@ abstract interface class LessonsRepository {
     required String endTime,
     String? observations,
   });
+  Future<({int totalCreated})> bulkCreateLessons(
+    String classId, {
+    required String disciplineId,
+    required List<DateTime> dates,
+    required String startTime,
+    required String endTime,
+    String? observations,
+  });
   Future<Lesson> updateLesson(
     String id, {
     DateTime? date,

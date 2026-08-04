@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { BulkCreateLessonsUseCase } from '../application/use-cases/bulk-create-lessons';
 import type { CreateLessonUseCase } from '../application/use-cases/create-lesson';
 import type { GetLessonUseCase } from '../application/use-cases/get-lesson';
 import type { ListLessonsUseCase } from '../application/use-cases/list-lessons';
@@ -8,6 +9,7 @@ import type { UpdateLessonUseCase } from '../application/use-cases/update-lesson
 export class LessonController {
   constructor(
     private readonly createLessonUseCase: CreateLessonUseCase,
+    private readonly bulkCreateLessonsUseCase: BulkCreateLessonsUseCase,
     private readonly updateLessonUseCase: UpdateLessonUseCase,
     private readonly listLessonsUseCase: ListLessonsUseCase,
     private readonly getLessonUseCase: GetLessonUseCase,
@@ -29,6 +31,20 @@ export class LessonController {
       teacherId: req.auth!.teacherId,
     });
     res.status(201).json({ data: lesson });
+  };
+
+  bulkCreate = async (req: Request, res: Response): Promise<void> => {
+    const { classId } = req.params as { classId: string };
+    const result = await this.bulkCreateLessonsUseCase.execute({
+      teacherId: req.auth!.teacherId,
+      classId,
+      disciplineId: req.body.disciplineId,
+      dates: req.body.dates,
+      startTime: req.body.startTime,
+      endTime: req.body.endTime,
+      observations: req.body.observations,
+    });
+    res.status(201).json({ data: result });
   };
 
   get = async (req: Request, res: Response): Promise<void> => {
