@@ -3,7 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../presentation/providers/academic_providers.dart';
+import '../../presentation/providers/activities_providers.dart';
+import '../../presentation/providers/classes_providers.dart';
+import '../../presentation/providers/contents_providers.dart';
+import '../../presentation/providers/dashboard_providers.dart';
+import '../../presentation/providers/lessons_providers.dart';
+import '../../presentation/providers/reports_providers.dart';
 import '../../presentation/providers/session_providers.dart';
+import '../../presentation/providers/students_providers.dart';
 
 /// Largura mínima a partir da qual usamos [NavigationRail] em vez de
 /// [NavigationBar] (breakpoint padrão Material 3 para telas médias/largas).
@@ -54,7 +61,7 @@ class AppScaffold extends ConsumerWidget {
               children: [
                 NavigationRail(
                   selectedIndex: navigationShell.currentIndex,
-                  onDestinationSelected: (index) => _onTap(index),
+                  onDestinationSelected: (index) => _onTap(ref, index),
                   labelType: NavigationRailLabelType.all,
                   destinations: _destinations
                       .map(
@@ -75,7 +82,7 @@ class AppScaffold extends ConsumerWidget {
           ? null
           : NavigationBar(
               selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: _onTap,
+              onDestinationSelected: (index) => _onTap(ref, index),
               destinations: _destinations
                   .map(
                     (d) => NavigationDestination(
@@ -89,11 +96,49 @@ class AppScaffold extends ConsumerWidget {
     );
   }
 
-  void _onTap(int index) {
+  /// Ao escolher um destino do shell, invalida os providers daquela área para
+  /// forçar um novo GET (o [StatefulShellRoute] mantém o estado das abas).
+  void _onTap(WidgetRef ref, int index) {
+    _invalidateBranchProviders(ref, index);
     navigationShell.goBranch(
       index,
       initialLocation: index == navigationShell.currentIndex,
     );
+  }
+}
+
+void _invalidateBranchProviders(WidgetRef ref, int index) {
+  switch (index) {
+    case 0:
+      ref.invalidate(dashboardProvider);
+    case 1:
+      ref.invalidate(classesListProvider);
+      ref.invalidate(coursesProvider);
+      ref.invalidate(disciplinesProvider);
+      ref.invalidate(classDetailProvider);
+      ref.invalidate(enrollmentsProvider);
+      ref.invalidate(classDisciplinesProvider);
+      ref.invalidate(lessonsListProvider);
+      ref.invalidate(lessonDetailProvider);
+      ref.invalidate(contentsListProvider);
+      ref.invalidate(activitiesListProvider);
+      ref.invalidate(activityDetailProvider);
+    case 2:
+      ref.invalidate(studentsListProvider);
+      ref.invalidate(studentDetailProvider);
+    case 3:
+      ref.invalidate(classesListProvider);
+      ref.invalidate(coursesProvider);
+      ref.invalidate(disciplinesProvider);
+      ref.read(reportsControllerProvider.notifier).clear();
+    case 4:
+      ref.invalidate(academicYearsProvider);
+      ref.invalidate(coursesProvider);
+      ref.invalidate(disciplinesProvider);
+      ref.invalidate(courseDisciplinesProvider);
+      ref.invalidate(assessmentPeriodsProvider);
+    default:
+      break;
   }
 }
 
