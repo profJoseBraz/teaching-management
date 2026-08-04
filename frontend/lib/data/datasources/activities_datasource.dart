@@ -109,18 +109,18 @@ class ActivitiesDatasource {
 
   Future<Activity> updateActivity(
     String id, {
-    String? title,
+    required String title,
     String? description,
-    String? category,
-    double? maxScore,
-    DateTime? dueDate,
+    required String category,
+    required double maxScore,
+    required DateTime dueDate,
   }) async {
     final response = await _apiClient.patch('/activities/$id', data: {
-      if (title != null) 'title': title,
-      if (description != null) 'description': description,
-      if (category != null) 'category': category,
-      if (maxScore != null) 'maxScore': maxScore,
-      if (dueDate != null) 'dueDate': _formatDate(dueDate),
+      'title': title,
+      'description': description,
+      'category': category,
+      'maxScore': maxScore,
+      'dueDate': _formatDate(dueDate),
     });
     return activityFromJson(response['data'] as Map<String, dynamic>);
   }
@@ -144,6 +144,11 @@ class ActivitiesDatasource {
 
   Future<Submission> markSubmitted(String submissionId) async {
     final response = await _apiClient.patch('/submissions/$submissionId', data: {'status': 'SUBMITTED'});
+    return submissionFromJson(response['data'] as Map<String, dynamic>);
+  }
+
+  Future<Submission> markPending(String submissionId) async {
+    final response = await _apiClient.patch('/submissions/$submissionId', data: {'status': 'PENDING'});
     return submissionFromJson(response['data'] as Map<String, dynamic>);
   }
 

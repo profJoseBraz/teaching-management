@@ -21,11 +21,11 @@ abstract interface class ActivitiesRepository {
   });
   Future<Activity> updateActivity(
     String id, {
-    String? title,
+    required String title,
     String? description,
-    String? category,
-    double? maxScore,
-    DateTime? dueDate,
+    required String category,
+    required double maxScore,
+    required DateTime dueDate,
   });
 
   Future<List<ActivityGroup>> createGroups(
@@ -35,6 +35,7 @@ abstract interface class ActivitiesRepository {
 
   Future<List<Submission>> getSubmissions(String activityId);
   Future<Submission> markSubmitted(String submissionId);
+  Future<Submission> markPending(String submissionId);
   Future<Submission> gradeSubmission(String submissionId, {required double score, String? observations});
   Future<List<Submission>> gradeShared(
     String activityId,

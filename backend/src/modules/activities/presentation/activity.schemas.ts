@@ -74,7 +74,7 @@ export const createActivityGroupsSchema = z.object({
 });
 
 export const updateSubmissionSchema = z.object({
-  status: z.literal('SUBMITTED'),
+  status: z.enum(['PENDING', 'SUBMITTED']),
 });
 
 export const gradeSubmissionSchema = z.object({

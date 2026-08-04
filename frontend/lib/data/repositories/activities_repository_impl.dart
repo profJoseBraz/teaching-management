@@ -48,11 +48,11 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
   @override
   Future<Activity> updateActivity(
     String id, {
-    String? title,
+    required String title,
     String? description,
-    String? category,
-    double? maxScore,
-    DateTime? dueDate,
+    required String category,
+    required double maxScore,
+    required DateTime dueDate,
   }) =>
       _datasource.updateActivity(
         id,
@@ -75,6 +75,9 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
 
   @override
   Future<Submission> markSubmitted(String submissionId) => _datasource.markSubmitted(submissionId);
+
+  @override
+  Future<Submission> markPending(String submissionId) => _datasource.markPending(submissionId);
 
   @override
   Future<Submission> gradeSubmission(String submissionId, {required double score, String? observations}) =>

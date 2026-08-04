@@ -73,13 +73,20 @@ class ActivitiesActions {
   Future<void> update(
     String id, {
     required String classId,
-    String? title,
+    required String title,
     String? description,
-    String? category,
-    double? maxScore,
-    DateTime? dueDate,
+    required String category,
+    required double maxScore,
+    required DateTime dueDate,
   }) async {
-    await _repo.updateActivity(id, title: title, description: description, category: category, maxScore: maxScore, dueDate: dueDate);
+    await _repo.updateActivity(
+      id,
+      title: title,
+      description: description,
+      category: category,
+      maxScore: maxScore,
+      dueDate: dueDate,
+    );
     _ref.invalidate(activitiesListProvider);
     _ref.invalidate(activityDetailProvider(id));
   }
@@ -95,6 +102,11 @@ class ActivitiesActions {
 
   Future<void> markSubmitted(String submissionId, {required String activityId}) async {
     await _repo.markSubmitted(submissionId);
+    _ref.invalidate(activityDetailProvider(activityId));
+  }
+
+  Future<void> markPending(String submissionId, {required String activityId}) async {
+    await _repo.markPending(submissionId);
     _ref.invalidate(activityDetailProvider(activityId));
   }
 

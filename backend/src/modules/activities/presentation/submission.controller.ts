@@ -1,18 +1,26 @@
 import type { Request, Response } from 'express';
 import type { GradeGroupSharedUseCase } from '../application/use-cases/grade-group-shared';
 import type { GradeSubmissionUseCase } from '../application/use-cases/grade-submission';
-import type { MarkSubmissionSubmittedUseCase } from '../application/use-cases/mark-submission-submitted';
+import type {
+  UpdateSubmissionStatusUseCase,
+  UpdatableSubmissionStatus,
+} from '../application/use-cases/update-submission-status';
 
 export class SubmissionController {
   constructor(
-    private readonly markSubmissionSubmittedUseCase: MarkSubmissionSubmittedUseCase,
+    private readonly updateSubmissionStatusUseCase: UpdateSubmissionStatusUseCase,
     private readonly gradeSubmissionUseCase: GradeSubmissionUseCase,
     private readonly gradeGroupSharedUseCase: GradeGroupSharedUseCase,
   ) {}
 
   update = async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params as { id: string };
-    const submission = await this.markSubmissionSubmittedUseCase.execute(id, req.auth!.teacherId);
+    const status = req.body.status as UpdatableSubmissionStatus;
+    const submission = await this.updateSubmissionStatusUseCase.execute(
+      id,
+      req.auth!.teacherId,
+      status,
+    );
     res.status(200).json({ data: submission });
   };
 

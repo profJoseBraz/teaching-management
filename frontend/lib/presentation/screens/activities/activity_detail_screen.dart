@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/widgets/async_value_widget.dart';
 import '../../../core/widgets/status_chip.dart';
+import '../../../domain/entities/activity.dart';
 import '../../../domain/entities/activity_detail.dart';
 import '../../../domain/entities/enrollment.dart';
 import '../../../domain/entities/submission.dart';
@@ -12,31 +13,74 @@ import '../../providers/classes_providers.dart';
 
 final _dateFormat = DateFormat('dd/MM/yyyy');
 
+enum _SubmissionFilter {
+  all,
+  pending,
+  submitted,
+  graded;
+
+  String get label => switch (this) {
+        all => 'Todas',
+        pending => 'Pendente',
+        submitted => 'Entregue',
+        graded => 'Avaliada',
+      };
+
+  bool matches(String status) => switch (this) {
+        all => true,
+        pending => status == 'PENDING',
+        submitted => status == 'SUBMITTED',
+        graded => status == 'GRADED',
+      };
+}
+
 /// Detalhe de uma atividade — resumo + lista de entregas com avaliação.
-class ActivityDetailScreen extends ConsumerWidget {
+class ActivityDetailScreen extends ConsumerStatefulWidget {
   const ActivityDetailScreen({super.key, required this.classId, required this.activityId});
 
   final String classId;
   final String activityId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final detailAsync = ref.watch(activityDetailProvider(activityId));
-    final enrollmentsAsync = ref.watch(enrollmentsProvider(classId));
+  ConsumerState<ActivityDetailScreen> createState() => _ActivityDetailScreenState();
+}
+
+class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
+  _SubmissionFilter _filter = _SubmissionFilter.all;
+
+  @override
+  Widget build(BuildContext context) {
+    final detailAsync = ref.watch(activityDetailProvider(widget.activityId));
+    final enrollmentsAsync = ref.watch(enrollmentsProvider(widget.classId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Atividade')),
+      appBar: AppBar(
+        title: const Text('Atividade'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Editar atividade',
+            onPressed: () {
+              final detail = detailAsync.valueOrNull;
+              if (detail == null) return;
+              _openEditActivityDialog(detail.activity);
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(activityDetailProvider(activityId)),
+        onRefresh: () async => ref.invalidate(activityDetailProvider(widget.activityId)),
         child: AsyncValueWidget<ActivityDetail>(
           value: detailAsync,
-          onRetry: () => ref.invalidate(activityDetailProvider(activityId)),
+          onRetry: () => ref.invalidate(activityDetailProvider(widget.activityId)),
           data: (detail) {
             final names = {
               for (final e in enrollmentsAsync.valueOrNull ?? const <Enrollment>[])
                 e.studentId: e.student?.name ?? 'Aluno',
             };
             final activity = detail.activity;
+            final filtered = detail.submissions.where((s) => _filter.matches(s.status)).toList();
 
             return ListView(
               padding: const EdgeInsets.all(16),
@@ -47,7 +91,10 @@ class ActivityDetailScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(activity.title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                        Text(
+                          activity.title,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        ),
                         if (activity.description?.isNotEmpty == true) ...[
                           const SizedBox(height: 6),
                           Text(activity.description!),
@@ -78,46 +125,87 @@ class ActivityDetailScreen extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: OutlinedButton.icon(
-                      onPressed: () => _openGroupsDialog(context, ref, detail, names),
+                      onPressed: () => _openGroupsDialog(detail, names),
                       icon: const Icon(Icons.groups_outlined),
                       label: const Text('Configurar grupos'),
                     ),
                   ),
                 Text('Entregas', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
-                ...detail.submissions.map(
-                  (submission) => Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      title: Text(names[submission.studentId] ?? submission.studentId),
-                      subtitle: submission.score != null
-                          ? Text('Nota: ${submission.score!.toStringAsFixed(1)} / ${activity.maxScore.toStringAsFixed(0)}')
-                          : null,
-                      trailing: Wrap(
-                        spacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          StatusChip.submissionStatus(submission.status),
-                          if (submission.status == 'PENDING')
-                            IconButton(
-                              icon: const Icon(Icons.upload_outlined),
-                              tooltip: 'Marcar como entregue',
-                              onPressed: () => ref.read(activitiesActionsProvider).markSubmitted(
-                                    submission.id,
-                                    activityId: activityId,
-                                  ),
-                            ),
-                          if (submission.status != 'PENDING')
-                            IconButton(
-                              icon: const Icon(Icons.grade_outlined),
-                              tooltip: 'Avaliar',
-                              onPressed: () => _openGradeDialog(context, ref, activity.maxScore, submission, activity.isSharedGrade),
-                            ),
-                        ],
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _SubmissionFilter.values.map((filter) {
+                    return FilterChip(
+                      label: Text(filter.label),
+                      selected: _filter == filter,
+                      onSelected: (_) => setState(() => _filter = filter),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+                if (filtered.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      _filter == _SubmissionFilter.all
+                          ? 'Nenhuma entrega cadastrada.'
+                          : 'Nenhuma entrega com status "${_filter.label}".',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  )
+                else
+                  ...filtered.map(
+                    (submission) => Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        title: Text(names[submission.studentId] ?? submission.studentId),
+                        subtitle: submission.score != null
+                            ? Text(
+                                'Nota: ${submission.score!.toStringAsFixed(1)} / ${activity.maxScore.toStringAsFixed(0)}',
+                              )
+                            : null,
+                        trailing: Wrap(
+                          spacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            StatusChip.submissionStatus(submission.status),
+                            if (submission.status == 'PENDING')
+                              IconButton(
+                                icon: const Icon(Icons.upload_outlined),
+                                tooltip: 'Marcar como entregue',
+                                onPressed: () => ref.read(activitiesActionsProvider).markSubmitted(
+                                      submission.id,
+                                      activityId: widget.activityId,
+                                    ),
+                              ),
+                            if (submission.status == 'SUBMITTED')
+                              IconButton(
+                                icon: const Icon(Icons.undo_rounded),
+                                tooltip: 'Voltar para pendente',
+                                onPressed: () => ref.read(activitiesActionsProvider).markPending(
+                                      submission.id,
+                                      activityId: widget.activityId,
+                                    ),
+                              ),
+                            if (submission.status != 'PENDING')
+                              IconButton(
+                                icon: const Icon(Icons.grade_outlined),
+                                tooltip: 'Avaliar',
+                                onPressed: () => _openGradeDialog(
+                                  activity.maxScore,
+                                  submission,
+                                  activity.isSharedGrade,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             );
           },
@@ -126,9 +214,38 @@ class ActivityDetailScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _openEditActivityDialog(Activity activity) async {
+    final draft = await showDialog<_EditActivityDraft>(
+      context: context,
+      builder: (context) => _EditActivityDialog(activity: activity),
+    );
+    if (draft == null || !mounted) return;
+
+    try {
+      await ref.read(activitiesActionsProvider).update(
+            activity.id,
+            classId: widget.classId,
+            title: draft.title,
+            description: draft.description,
+            category: draft.category,
+            maxScore: draft.maxScore,
+            dueDate: draft.dueDate,
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Atividade atualizada.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao atualizar atividade: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _openGradeDialog(
-    BuildContext context,
-    WidgetRef ref,
     double maxScore,
     Submission submission,
     bool isSharedGrade,
@@ -184,20 +301,28 @@ class ActivityDetailScreen extends ConsumerWidget {
     final actions = ref.read(activitiesActionsProvider);
     try {
       if (isSharedGrade && submission.groupId != null) {
-        await actions.gradeShared(activityId, submission.groupId!, score: score, observations: observations);
+        await actions.gradeShared(
+          widget.activityId,
+          submission.groupId!,
+          score: score,
+          observations: observations,
+        );
       } else {
-        await actions.gradeSubmission(submission.id, activityId: activityId, score: score, observations: observations);
+        await actions.gradeSubmission(
+          submission.id,
+          activityId: widget.activityId,
+          score: score,
+          observations: observations,
+        );
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao avaliar: $e')));
       }
     }
   }
 
   Future<void> _openGroupsDialog(
-    BuildContext context,
-    WidgetRef ref,
     ActivityDetail detail,
     Map<String, String> names,
   ) async {
@@ -229,7 +354,7 @@ class ActivityDetailScreen extends ConsumerWidget {
                     if (remaining.isNotEmpty)
                       FilledButton.tonalIcon(
                         onPressed: () async {
-                          final created = await _openCreateGroupDialog(context, remaining, names);
+                          final created = await _openCreateGroupDialog(remaining, names);
                           if (created != null) setState(() => groups.add(created));
                         },
                         icon: const Icon(Icons.add_rounded),
@@ -251,8 +376,10 @@ class ActivityDetailScreen extends ConsumerWidget {
                         try {
                           await ref.read(activitiesActionsProvider).createGroups(detail.activity.id, groups);
                         } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar grupos: $e')));
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Erro ao salvar grupos: $e')),
+                            );
                           }
                         }
                       },
@@ -266,7 +393,6 @@ class ActivityDetailScreen extends ConsumerWidget {
   }
 
   Future<({String name, List<String> studentIds})?> _openCreateGroupDialog(
-    BuildContext context,
     List<String> availableIds,
     Map<String, String> names,
   ) async {
@@ -320,6 +446,136 @@ class ActivityDetailScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+typedef _EditActivityDraft = ({
+  String title,
+  String? description,
+  String category,
+  double maxScore,
+  DateTime dueDate,
+});
+
+/// Diálogo Stateful para descartar controllers só no `dispose` do State
+/// (evita assertion `_dependents.isEmpty` ao salvar).
+class _EditActivityDialog extends StatefulWidget {
+  const _EditActivityDialog({required this.activity});
+
+  final Activity activity;
+
+  @override
+  State<_EditActivityDialog> createState() => _EditActivityDialogState();
+}
+
+class _EditActivityDialogState extends State<_EditActivityDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _maxScoreController;
+  late String _category;
+  late DateTime _dueDate;
+
+  @override
+  void initState() {
+    super.initState();
+    final activity = widget.activity;
+    _titleController = TextEditingController(text: activity.title);
+    _descriptionController = TextEditingController(text: activity.description ?? '');
+    _maxScoreController = TextEditingController(text: activity.maxScore.toStringAsFixed(0));
+    _category = activity.category;
+    _dueDate = activity.dueDate;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _maxScoreController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    final maxScore = double.parse(_maxScoreController.text);
+    final description = _descriptionController.text.trim();
+    Navigator.pop(context, (
+      title: _titleController.text.trim(),
+      description: description.isEmpty ? null : description,
+      category: _category,
+      maxScore: maxScore,
+      dueDate: _dueDate,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Editar atividade'),
+      content: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(labelText: 'Título'),
+                autofocus: true,
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe um título' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(labelText: 'Descrição (opcional)'),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _category,
+                decoration: const InputDecoration(labelText: 'Categoria'),
+                items: Activity.categoryLabels.entries
+                    .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) setState(() => _category = value);
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _maxScoreController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Nota máxima'),
+                validator: (v) {
+                  final value = double.tryParse(v ?? '');
+                  if (value == null || value <= 0) return 'Informe um número válido';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Entrega: ${_dateFormat.format(_dueDate)}'),
+                trailing: const Icon(Icons.calendar_month_outlined),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _dueDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2100),
+                  );
+                  if (picked != null) setState(() => _dueDate = picked);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        FilledButton(onPressed: _save, child: const Text('Salvar')),
+      ],
     );
   }
 }
