@@ -70,6 +70,7 @@ import { PrismaEnrollmentRepository } from '../modules/classes/infrastructure/pr
 import { ClassController } from '../modules/classes/presentation/class.controller';
 
 // --- Lessons ------------------------------------------------------------
+import { BulkCreateLessonsUseCase } from '../modules/lessons/application/use-cases/bulk-create-lessons';
 import { CreateLessonUseCase } from '../modules/lessons/application/use-cases/create-lesson';
 import { GetLessonUseCase } from '../modules/lessons/application/use-cases/get-lesson';
 import { ListLessonsUseCase } from '../modules/lessons/application/use-cases/list-lessons';
@@ -105,8 +106,8 @@ import { GradeGroupSharedUseCase } from '../modules/activities/application/use-c
 import { GradeSubmissionUseCase } from '../modules/activities/application/use-cases/grade-submission';
 import { ListActivitiesUseCase } from '../modules/activities/application/use-cases/list-activities';
 import { ListSubmissionsUseCase } from '../modules/activities/application/use-cases/list-submissions';
-import { MarkSubmissionSubmittedUseCase } from '../modules/activities/application/use-cases/mark-submission-submitted';
 import { UpdateActivityUseCase } from '../modules/activities/application/use-cases/update-activity';
+import { UpdateSubmissionStatusUseCase } from '../modules/activities/application/use-cases/update-submission-status';
 import { PrismaActivityGroupRepository } from '../modules/activities/infrastructure/prisma-activity-group-repository';
 import { PrismaActivityRepository } from '../modules/activities/infrastructure/prisma-activity-repository';
 import { PrismaSubmissionRepository } from '../modules/activities/infrastructure/prisma-submission-repository';
@@ -310,6 +311,7 @@ export function createContainer() {
     classOwnershipChecker,
     classDisciplineGateway,
   );
+  const bulkCreateLessonsUseCase = new BulkCreateLessonsUseCase(createLessonUseCase);
   const updateLessonUseCase = new UpdateLessonUseCase(lessonRepository);
   const listLessonsUseCase = new ListLessonsUseCase(lessonRepository, classOwnershipChecker);
   const getLessonUseCase = new GetLessonUseCase(lessonRepository);
@@ -317,6 +319,7 @@ export function createContainer() {
 
   const lessonController = new LessonController(
     createLessonUseCase,
+    bulkCreateLessonsUseCase,
     updateLessonUseCase,
     listLessonsUseCase,
     getLessonUseCase,
@@ -407,7 +410,7 @@ export function createContainer() {
     enrollmentGateway,
   );
   const listSubmissionsUseCase = new ListSubmissionsUseCase(activityRepository, submissionRepository);
-  const markSubmissionSubmittedUseCase = new MarkSubmissionSubmittedUseCase(submissionRepository);
+  const updateSubmissionStatusUseCase = new UpdateSubmissionStatusUseCase(submissionRepository);
   const gradeSubmissionUseCase = new GradeSubmissionUseCase(submissionRepository, activityRepository);
   const gradeGroupSharedUseCase = new GradeGroupSharedUseCase(
     submissionRepository,
@@ -424,7 +427,7 @@ export function createContainer() {
     listSubmissionsUseCase,
   );
   const submissionController = new SubmissionController(
-    markSubmissionSubmittedUseCase,
+    updateSubmissionStatusUseCase,
     gradeSubmissionUseCase,
     gradeGroupSharedUseCase,
   );

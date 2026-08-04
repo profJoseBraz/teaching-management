@@ -325,7 +325,7 @@ Unique `(activityId, studentId)`.
 20. Nota não pode exceder `maxScore` nem ser negativa.
 21. Em GROUP + SHARED, aplicar a mesma nota a todos os membros do grupo.
 22. Em GROUP + INDIVIDUAL, cada submission tem nota própria.
-23. Transições de entrega: PENDING → SUBMITTED → GRADED (permitir atalho PENDING → GRADED se o professor lançar nota direto).
+23. Transições de entrega: PENDING ↔ SUBMITTED → GRADED (permitir atalho PENDING → GRADED se o professor lançar nota direto; SUBMITTED → PENDING corrige marcação acidental; GRADED não volta por este fluxo).
 
 ### Insights (cruzamentos)
 24. “Não entregou e estava ausente na aula de origem” = submission PENDING/não SUBMITTED + attendance ABSENT na `originLesson`.
@@ -359,7 +359,7 @@ Unique `(activityId, studentId)`.
 - `BulkEnrollStudents` (preparar contrato; importação CSV no futuro)
 
 ### Lessons & contents
-- `CreateLesson` (requer `disciplineId` vinculado à turma) / `UpdateLesson` / `ListLessons` (filtro por `disciplineId`) / `GetLesson` / `DeleteLesson` (soft)
+- `CreateLesson` (requer `disciplineId` vinculado à turma) / `BulkCreateLessons` (N datas, máx. 200) / `UpdateLesson` / `ListLessons` (filtro por `disciplineId`) / `GetLesson` / `DeleteLesson` (soft)
 - `CreateContent` (requer `disciplineId` vinculado à turma) / `UpdateContent` / `LinkContentToLesson` / `UnlinkContentFromLesson`
 - `CompleteContent` / `ReopenContent` / `ListContents` (filtro por status e `disciplineId`)
 
@@ -373,7 +373,7 @@ Unique `(activityId, studentId)`.
 - `CreateActivity` (gera submissions; `disciplineId` herdado da aula de origem se omitido)
 - `UpdateActivity`
 - `CreateActivityGroups` / `AssignStudentsToGroup`
-- `MarkSubmissionSubmitted`
+- `UpdateSubmissionStatus` (PENDING ↔ SUBMITTED)
 - `GradeSubmission`
 - `GradeGroupShared`
 - `ListActivities` (filtro por `disciplineId`) / `GetActivityBoard` (entregas da atividade)
@@ -668,7 +668,7 @@ Login
 2. **Dashboard** — attention items + resumo do dia
 3. **Lista de Turmas** — filtro por ano letivo
 4. **Detalhe da Turma** — hub com contadores de pendência; edição de nome/turno; disciplinas; arquivar
-5. **Lista/Agenda de Aulas**
+5. **Lista/Agenda de Aulas** — criação unitária ou em lote (período + dias da semana, ou dias avulsos no calendário)
 6. **Chamada (Frequência)** — grid rápido Presente/Ausente/Atrasado
 7. **Conteúdos** — em andamento / concluídos; vincular a aulas
 8. **Atividades** — board de entregas; correção rápida

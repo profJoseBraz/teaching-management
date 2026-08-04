@@ -81,6 +81,7 @@ com vínculo ativo àquela disciplina (`classDisciplines.some`); `EnrollStudent`
 ### Lessons (`src/modules/lessons`)
 
 - `GET /classes/{classId}/lessons` (aceita filtro `?disciplineId=`) · `POST /classes/{classId}/lessons`
+- `POST /classes/{classId}/lessons/bulk` (body `{ disciplineId, dates[], startTime, endTime, observations? }`) — cadastra várias aulas com o mesmo horário/disciplina (máx. 200 datas)
 - `GET/PATCH/DELETE /lessons/{id}` (`DELETE` = soft delete)
 
 Regras de domínio: `disciplineId` é obrigatório na criação e deve corresponder a um vínculo `ClassDiscipline`
@@ -113,7 +114,7 @@ alunos pendentes. Não há preenchimento automático como `PRESENT`.
 - `GET/PATCH /activities/{id}` (`GET` inclui submissions + resumo agregado)
 - `POST /activities/{id}/groups` — cria/substitui grupos (`mode=GROUP`) e atribui `groupId` às submissions
 - `GET /activities/{id}/submissions`
-- `PATCH /submissions/{id}` — marca `SUBMITTED`
+- `PATCH /submissions/{id}` (body `{ status: 'PENDING' | 'SUBMITTED' }`) — alterna pendente/entregue; não altera `GRADED`
 - `POST /submissions/{id}/grade` — avalia individualmente (`score` entre `0` e `maxScore`)
 - `POST /activities/{activityId}/groups/{groupId}/grade-shared` — avalia grupo (`gradeMode=SHARED`), aplica a mesma nota a todos os membros
 

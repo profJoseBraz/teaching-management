@@ -569,6 +569,34 @@ export const openApiDocument = {
           observations: { type: 'string', nullable: true },
         },
       },
+      BulkCreateLessonsRequest: {
+        type: 'object',
+        required: ['disciplineId', 'dates', 'startTime', 'endTime'],
+        properties: {
+          disciplineId: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Deve estar vinculada à turma (ClassDiscipline ativo).',
+          },
+          dates: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 200,
+            items: { type: 'string', format: 'date' },
+            description: 'Datas das aulas (deduplicadas no servidor).',
+          },
+          startTime: { type: 'string', example: '08:00' },
+          endTime: { type: 'string', example: '09:40' },
+          observations: { type: 'string', nullable: true },
+        },
+      },
+      BulkCreateLessonsResponse: {
+        type: 'object',
+        properties: {
+          created: { type: 'array', items: { $ref: '#/components/schemas/Lesson' } },
+          totalCreated: { type: 'integer' },
+        },
+      },
       UpdateLessonRequest: {
         type: 'object',
         properties: {
@@ -702,7 +730,11 @@ export const openApiDocument = {
         type: 'object',
         required: ['status'],
         properties: {
-          status: { type: 'string', enum: ['SUBMITTED'] },
+          status: {
+            type: 'string',
+            enum: ['PENDING', 'SUBMITTED'],
+            description: 'PENDING ↔ SUBMITTED. Entregas GRADED não podem mudar por este endpoint.',
+          },
         },
       },
       GradeSubmissionRequest: {
@@ -1807,6 +1839,42 @@ export const openApiDocument = {
         },
       },
     },
+    '/classes/{classId}/lessons/bulk': {
+      post: {
+        tags: ['Lessons'],
+        summary: 'Cadastrar várias aulas de uma vez',
+        description:
+          'Cria N aulas com a mesma disciplina e horário. Datas duplicadas são deduplicadas (máx. 200).',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'classId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/BulkCreateLessonsRequest' } },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Lote criado',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { data: { $ref: '#/components/schemas/BulkCreateLessonsResponse' } },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Lista de datas vazia ou acima do limite',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '422': { description: 'Validação (ex.: endTime <= startTime, disciplina não vinculada)' },
+        },
+      },
+    },
     '/lessons/{id}': {
       get: {
         tags: ['Lessons'],
@@ -2133,7 +2201,8 @@ export const openApiDocument = {
     '/submissions/{id}': {
       patch: {
         tags: ['Submissions'],
-        summary: 'Marcar submission como SUBMITTED',
+        summary: 'Atualizar status da submission (PENDING ↔ SUBMITTED)',
+        description: 'Permite marcar como entregue ou voltar para pendente. Entregas GRADED não podem mudar aqui.',
         security: [{ bearerAuth: [] }],
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
         requestBody: {
@@ -2142,7 +2211,7 @@ export const openApiDocument = {
         },
         responses: {
           '200': { description: 'Submission atualizada' },
-          '422': { description: 'Submission já avaliada (GRADED)' },
+          '422': { description: 'Submission já avaliada (GRADED) ou transição inválida' },
         },
       },
     },
