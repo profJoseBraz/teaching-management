@@ -38,6 +38,25 @@ export class PrismaStudentRepository implements StudentRepository {
     return mapStudent(row);
   }
 
+  async createMany(inputs: CreateStudentInput[]): Promise<Student[]> {
+    if (inputs.length === 0) return [];
+
+    return prisma.$transaction(
+      inputs.map((input) =>
+        prisma.student.create({
+          data: {
+            teacherId: input.teacherId,
+            name: input.name,
+            registryCode: input.registryCode ?? null,
+            email: input.email ?? null,
+            phone: input.phone ?? null,
+            notes: input.notes ?? null,
+          },
+        }),
+      ),
+    ).then((rows) => rows.map(mapStudent));
+  }
+
   async findById(teacherId: string, id: string): Promise<Student | null> {
     const row = await prisma.student.findFirst({ where: { id, teacherId } });
     return row ? mapStudent(row) : null;

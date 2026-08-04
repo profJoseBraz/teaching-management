@@ -27,10 +27,24 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
     final studentsAsync = ref.watch(studentsListProvider);
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openFormDialog(context),
-        icon: const Icon(Icons.person_add_alt_1_rounded),
-        label: const Text('Novo aluno'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'students_bulk_paste',
+            onPressed: () => _openBulkPasteDialog(context),
+            icon: const Icon(Icons.content_paste_go_rounded),
+            label: const Text('Colar lista'),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'students_new',
+            onPressed: () => _openFormDialog(context),
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+            label: const Text('Novo aluno'),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -98,6 +112,116 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _openBulkPasteDialog(BuildContext context) async {
+    final textController = TextEditingController();
+    var submitting = false;
+
+    await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Colar lista de alunos'),
+              content: SizedBox(
+                width: 560,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Cole um nome por linha, ou registros no formato Matrícula;Nome;E-mail…',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Exemplos:\n'
+                        'Ana Souza\n'
+                        '2026002;Bruno Lima;bruno@escola.com\n'
+                        'Matrícula;Nome;E-mail\n'
+                        '2026003;Carla Mendes;carla@escola.com',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: textController,
+                        minLines: 10,
+                        maxLines: 16,
+                        decoration: const InputDecoration(
+                          alignLabelWithHint: true,
+                          labelText: 'Lista colada',
+                          hintText: 'Cole aqui os nomes ou registros…',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: submitting ? null : () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton.icon(
+                  onPressed: submitting
+                      ? null
+                      : () async {
+                          final text = textController.text.trim();
+                          if (text.isEmpty) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(content: Text('Cole ao menos um nome ou registro.')),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() => submitting = true);
+                          try {
+                            final bulk = await ref.read(studentsActionsProvider).bulkCreate(text: text);
+                            if (!dialogContext.mounted) return;
+                            Navigator.pop(dialogContext, true);
+                            if (!mounted) return;
+
+                            final skippedInfo = bulk.skipped.isEmpty
+                                ? ''
+                                : ' (${bulk.skipped.length} linha(s) ignorada(s))';
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '${bulk.totalCreated} aluno(s) cadastrado(s)$skippedInfo',
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            setDialogState(() => submitting = false);
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(content: Text('Erro ao cadastrar lista: $e')),
+                            );
+                          }
+                        },
+                  icon: submitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.group_add_rounded),
+                  label: Text(submitting ? 'Cadastrando…' : 'Cadastrar todos'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    textController.dispose();
   }
 
   Future<void> _confirmDelete(BuildContext context, Student student) async {

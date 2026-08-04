@@ -1,4 +1,5 @@
 import '../../core/network/api_client.dart';
+import '../../domain/entities/bulk_create_students_result.dart';
 import '../../domain/entities/student.dart';
 
 Student studentFromJson(Map<String, dynamic> json) => Student(
@@ -9,6 +10,27 @@ Student studentFromJson(Map<String, dynamic> json) => Student(
       phone: json['phone'] as String?,
       notes: json['notes'] as String?,
     );
+
+BulkCreateStudentsResult bulkCreateResultFromJson(Map<String, dynamic> json) {
+  final created = (json['created'] as List? ?? [])
+      .map((e) => studentFromJson(e as Map<String, dynamic>))
+      .toList();
+  final skipped = (json['skipped'] as List? ?? []).map((e) {
+    final row = e as Map<String, dynamic>;
+    return BulkCreateSkippedRow(
+      lineNumber: row['lineNumber'] as int,
+      line: row['line'] as String? ?? '',
+      reason: row['reason'] as String? ?? '',
+    );
+  }).toList();
+
+  return BulkCreateStudentsResult(
+    created: created,
+    skipped: skipped,
+    totalParsed: json['totalParsed'] as int? ?? created.length,
+    totalCreated: json['totalCreated'] as int? ?? created.length,
+  );
+}
 
 /// Fala com `/students`.
 class StudentsDatasource {
@@ -41,6 +63,11 @@ class StudentsDatasource {
       if (notes != null) 'notes': notes,
     });
     return studentFromJson(response['data'] as Map<String, dynamic>);
+  }
+
+  Future<BulkCreateStudentsResult> bulkCreateStudents({required String text}) async {
+    final response = await _apiClient.post('/students/bulk', data: {'text': text});
+    return bulkCreateResultFromJson(response['data'] as Map<String, dynamic>);
   }
 
   Future<Student> updateStudent(

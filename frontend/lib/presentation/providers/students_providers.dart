@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/datasources/students_datasource.dart';
 import '../../data/repositories/students_repository_impl.dart';
+import '../../domain/entities/bulk_create_students_result.dart';
 import '../../domain/entities/student.dart';
 import '../../domain/repositories/students_repository.dart';
 import 'session_providers.dart';
@@ -42,6 +43,12 @@ class StudentsActions {
   }) async {
     await _repo.createStudent(name: name, registryCode: registryCode, email: email, phone: phone, notes: notes);
     _ref.invalidate(studentsListProvider);
+  }
+
+  Future<BulkCreateStudentsResult> bulkCreate({required String text}) async {
+    final result = await _repo.bulkCreateStudents(text: text);
+    _ref.invalidate(studentsListProvider);
+    return result;
   }
 
   Future<void> update(

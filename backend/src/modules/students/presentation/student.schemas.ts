@@ -16,6 +16,10 @@ export const createStudentSchema = z.object({
   notes: z.string().trim().max(4000).optional(),
 });
 
+export const bulkCreateStudentsSchema = z.object({
+  text: z.string().trim().min(1).max(200_000),
+});
+
 export const updateStudentSchema = z
   .object({
     name: z.string().trim().min(2).max(160),

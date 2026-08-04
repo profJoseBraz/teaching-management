@@ -1,3 +1,4 @@
+import '../../domain/entities/bulk_create_students_result.dart';
 import '../../domain/entities/student.dart';
 import '../../domain/repositories/students_repository.dart';
 import '../datasources/students_datasource.dart';
@@ -28,6 +29,10 @@ class StudentsRepositoryImpl implements StudentsRepository {
         phone: phone,
         notes: notes,
       );
+
+  @override
+  Future<BulkCreateStudentsResult> bulkCreateStudents({required String text}) =>
+      _datasource.bulkCreateStudents(text: text);
 
   @override
   Future<Student> updateStudent(

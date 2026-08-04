@@ -4,6 +4,7 @@ import type { AuthMiddleware } from '../../../shared/http/auth.middleware';
 import { validate } from '../../../shared/http/validate';
 import type { StudentController } from './student.controller';
 import {
+  bulkCreateStudentsSchema,
   createStudentSchema,
   idParamSchema,
   listStudentsQuerySchema,
@@ -20,6 +21,11 @@ export function createStudentRoutes(
 
   router.get('/students', validate(listStudentsQuerySchema, 'query'), asyncHandler(controller.list));
   router.post('/students', validate(createStudentSchema), asyncHandler(controller.create));
+  router.post(
+    '/students/bulk',
+    validate(bulkCreateStudentsSchema),
+    asyncHandler(controller.bulkCreate),
+  );
   router.get(
     '/students/:id',
     validate(idParamSchema, 'params'),

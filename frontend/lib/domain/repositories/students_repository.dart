@@ -1,3 +1,4 @@
+import '../entities/bulk_create_students_result.dart';
 import '../entities/student.dart';
 
 abstract interface class StudentsRepository {
@@ -10,6 +11,7 @@ abstract interface class StudentsRepository {
     String? phone,
     String? notes,
   });
+  Future<BulkCreateStudentsResult> bulkCreateStudents({required String text});
   Future<Student> updateStudent(
     String id, {
     String? name,

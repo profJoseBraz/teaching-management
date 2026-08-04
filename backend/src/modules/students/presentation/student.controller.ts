@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import type { ParamsDictionary } from 'express-serve-static-core';
+import type { BulkCreateStudentsUseCase } from '../application/use-cases/bulk-create-students';
 import type { CreateStudentUseCase } from '../application/use-cases/create-student';
 import type { UpdateStudentUseCase } from '../application/use-cases/update-student';
 import type { ListStudentsUseCase } from '../application/use-cases/list-students';
@@ -13,6 +14,7 @@ type ListStudentsQuery = { search?: string };
 export class StudentController {
   constructor(
     private readonly createStudentUseCase: CreateStudentUseCase,
+    private readonly bulkCreateStudentsUseCase: BulkCreateStudentsUseCase,
     private readonly updateStudentUseCase: UpdateStudentUseCase,
     private readonly listStudentsUseCase: ListStudentsUseCase,
     private readonly getStudentUseCase: GetStudentUseCase,
@@ -22,6 +24,15 @@ export class StudentController {
   create = async (req: Request, res: Response): Promise<void> => {
     const teacherId = req.auth!.teacherId;
     const result = await this.createStudentUseCase.execute({ ...req.body, teacherId });
+    res.status(201).json({ data: result });
+  };
+
+  bulkCreate = async (req: Request, res: Response): Promise<void> => {
+    const teacherId = req.auth!.teacherId;
+    const result = await this.bulkCreateStudentsUseCase.execute({
+      teacherId,
+      text: req.body.text,
+    });
     res.status(201).json({ data: result });
   };
 

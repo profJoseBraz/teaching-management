@@ -23,6 +23,7 @@ export type ListStudentsFilters = {
 
 export interface StudentRepository {
   create(input: CreateStudentInput): Promise<Student>;
+  createMany(inputs: CreateStudentInput[]): Promise<Student[]>;
   findById(teacherId: string, id: string): Promise<Student | null>;
   list(teacherId: string, filters?: ListStudentsFilters): Promise<Student[]>;
   update(teacherId: string, id: string, input: UpdateStudentInput): Promise<Student>;
