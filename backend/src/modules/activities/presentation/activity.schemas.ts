@@ -44,15 +44,16 @@ export const listActivitiesQuerySchema = z.object({
   tag: z.string().trim().min(1).max(80).optional(),
 });
 
+/**
+ * `disciplineIds` é a forma preferida (mín. 1 sem aula de origem).
+ * `disciplineId` singular é aceito por compatibilidade e normalizado em `disciplineIds`.
+ */
 export const createActivitySchema = z
   .object({
     /** Opcional — atividade pode existir sem aula de origem. */
     originLessonId: z.uuid().nullish(),
-    /**
-     * Obrigatório quando `originLessonId` está ausente.
-     * Quando há aula de origem e este campo é omitido, herda a disciplina da aula.
-     */
     disciplineId: z.uuid().optional(),
+    disciplineIds: z.array(z.uuid()).optional(),
     assessmentPeriodId: z.uuid().nullish(),
     title: z.string().trim().min(2).max(200),
     description: z.string().trim().max(5000).nullish(),
@@ -63,9 +64,15 @@ export const createActivitySchema = z
     maxScore: z.coerce.number().positive().max(1000).default(100),
     dueDate: z.coerce.date(),
   })
-  .refine((data) => Boolean(data.originLessonId) || Boolean(data.disciplineId), {
-    message: 'disciplineId is required when originLessonId is omitted',
-    path: ['disciplineId'],
+  .transform(({ disciplineId, disciplineIds, ...rest }) => ({
+    ...rest,
+    disciplineIds: Array.from(
+      new Set([...(disciplineIds ?? []), ...(disciplineId ? [disciplineId] : [])]),
+    ),
+  }))
+  .refine((data) => Boolean(data.originLessonId) || data.disciplineIds.length > 0, {
+    message: 'At least one disciplineId is required when originLessonId is omitted',
+    path: ['disciplineIds'],
   });
 
 export const updateActivitySchema = z
@@ -79,8 +86,27 @@ export const updateActivitySchema = z
     gradeMode: z.enum(['SHARED', 'INDIVIDUAL']).optional(),
     maxScore: z.coerce.number().positive().max(1000).optional(),
     dueDate: z.coerce.date().optional(),
+    disciplineId: z.uuid().optional(),
+    disciplineIds: z.array(z.uuid()).optional(),
   })
-  .refine((data) => Object.keys(data).length > 0, { message: 'No fields to update' });
+  .transform(({ disciplineId, disciplineIds, ...rest }) => {
+    const hasDisciplinePatch = disciplineIds !== undefined || disciplineId !== undefined;
+    return {
+      ...rest,
+      ...(hasDisciplinePatch
+        ? {
+            disciplineIds: Array.from(
+              new Set([...(disciplineIds ?? []), ...(disciplineId ? [disciplineId] : [])]),
+            ),
+          }
+        : {}),
+    };
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: 'No fields to update' })
+  .refine((data) => data.disciplineIds === undefined || data.disciplineIds.length > 0, {
+    message: 'At least one disciplineId is required',
+    path: ['disciplineIds'],
+  });
 
 export const createActivityGroupsSchema = z.object({
   groups: z
@@ -103,6 +129,12 @@ export const gradeSubmissionSchema = z.object({
 });
 
 export const gradeGroupSharedSchema = z.object({
+  score: z.coerce.number().min(0),
+  observations: z.string().trim().max(2000).nullish(),
+});
+
+export const gradeSubmissionsBulkSchema = z.object({
+  submissionIds: z.array(z.uuid()).min(1).max(200),
   score: z.coerce.number().min(0),
   observations: z.string().trim().max(2000).nullish(),
 });

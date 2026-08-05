@@ -2,7 +2,7 @@ class Activity {
   const Activity({
     required this.id,
     required this.classId,
-    required this.disciplineId,
+    required this.disciplineIds,
     this.originLessonId,
     this.assessmentPeriodId,
     required this.title,
@@ -18,7 +18,8 @@ class Activity {
 
   final String id;
   final String classId;
-  final String disciplineId;
+  /// Disciplinas vinculadas (N:N). Mín. 1.
+  final List<String> disciplineIds;
   final String? originLessonId;
   final String? assessmentPeriodId;
   final String title;
@@ -47,4 +48,10 @@ class Activity {
   };
 
   String get categoryLabel => categoryLabels[category] ?? category;
+
+  /// Nomes das disciplinas para exibição, na ordem de [disciplineIds].
+  String disciplineNamesLabel(Map<String, String> namesById) {
+    if (disciplineIds.isEmpty) return 'Disciplina';
+    return disciplineIds.map((id) => namesById[id] ?? 'Disciplina').join(', ');
+  }
 }

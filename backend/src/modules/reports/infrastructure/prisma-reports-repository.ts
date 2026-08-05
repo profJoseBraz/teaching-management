@@ -50,6 +50,13 @@ function activityScope(teacherId: string, filters: ReportFilters): Prisma.Activi
     deletedAt: null,
     ...(filters.classId ? { classId: filters.classId } : {}),
     ...(classRelation ? { class: classRelation } : {}),
+    ...(filters.disciplineId
+      ? {
+          activityDisciplines: {
+            some: { disciplineId: filters.disciplineId, deletedAt: null },
+          },
+        }
+      : {}),
     ...(filters.assessmentPeriodId ? { assessmentPeriodId: filters.assessmentPeriodId } : {}),
   };
 }

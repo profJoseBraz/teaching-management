@@ -9,4 +9,21 @@ export class PrismaClassDisciplineGateway implements ClassDisciplineGateway {
     });
     return found !== null;
   }
+
+  async areAllLinked(teacherId: string, classId: string, disciplineIds: string[]): Promise<boolean> {
+    const unique = [...new Set(disciplineIds)];
+    if (unique.length === 0) {
+      return false;
+    }
+
+    const count = await prisma.classDiscipline.count({
+      where: {
+        teacherId,
+        classId,
+        disciplineId: { in: unique },
+        deletedAt: null,
+      },
+    });
+    return count === unique.length;
+  }
 }

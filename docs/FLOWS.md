@@ -38,3 +38,39 @@ flowchart TD
   Action --> Done[Pendência resolvida]
   Done --> Dash
 ```
+
+## Nota em lote (seleção de alunos)
+
+```mermaid
+sequenceDiagram
+  participant App as Flutter
+  participant API as Express
+  participant UC as GradeSubmissionsBulk
+  participant DB as PostgreSQL
+
+  App->>API: POST /activities/{id}/submissions/grade-bulk
+  Note over App,API: { submissionIds[], score, observations? }
+  API->>UC: execute
+  UC->>DB: updateMany GRADED + score
+  UC-->>API: Submission[]
+  API-->>App: 200 { data }
+```
+
+## Criar atividade (múltiplas disciplinas)
+
+```mermaid
+sequenceDiagram
+  participant App as Flutter
+  participant API as Express
+  participant UC as CreateActivityUseCase
+  participant CD as ClassDisciplineGateway
+  participant DB as PostgreSQL
+
+  App->>API: POST /classes/{id}/activities { disciplineIds[], ... }
+  API->>UC: execute
+  UC->>CD: areAllLinked(disciplineIds)
+  UC->>DB: Activity + ActivityDiscipline[]
+  UC->>DB: Submission PENDING (alunos ativos)
+  UC-->>API: Activity { disciplineIds }
+  API-->>App: 201 { data }
+```

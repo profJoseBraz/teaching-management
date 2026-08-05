@@ -197,7 +197,7 @@ Agregados definem fronteiras de consistência transacional.
 | **ClassDiscipline** | — | Par turma+disciplina único; soft delete (turma pode ganhar/perder disciplinas) |
 | **Lesson** | Attendances | `disciplineId` obrigatório (vinculado à turma); horário final > inicial; 1 registro de frequência por aluno/aula |
 | **Content** | LessonContents | `disciplineId` obrigatório (vinculado à turma); status OPEN/COMPLETED; conclusão só pelo professor |
-| **Activity** | Groups, Members, Submissions | `disciplineId` obrigatório = disciplina da aula de origem; nota ≤ máxima; grupo só se mode=GROUP |
+| **Activity** | ActivityDisciplines, Groups, Members, Submissions | N disciplinas via `ActivityDiscipline` (mín. 1); nota ≤ máxima; grupo só se mode=GROUP |
 
 **Ownership:** todo agregado de negócio carrega `teacherId`. Repositórios **sempre** filtram por ele.
 
@@ -230,8 +230,9 @@ Disciplina **não** pertence a um único curso.
 - `status`: ACTIVE | ARCHIVED
 
 Constraint: único `(teacherId, academicYearId, courseId, name)`. Uma turma **não** possui mais
-`disciplineId` direto — ela ministra N disciplinas via `ClassDiscipline` (ver abaixo). As aulas,
-conteúdos e atividades da turma **são** por disciplina (`disciplineId` obrigatório em cada um).
+`disciplineId` direto — ela ministra N disciplinas via `ClassDiscipline` (ver abaixo). As aulas e
+conteúdos da turma **são** por disciplina (`disciplineId` obrigatório). Atividades vinculam-se a
+**uma ou mais** disciplinas via `ActivityDiscipline` (N:N).
 
 #### ClassDiscipline
 - `id`, `teacherId`, `classId`, `disciplineId`, `deletedAt?` (soft delete)  
@@ -267,17 +268,23 @@ Unique `(classId, studentId)`.
 Unique `(lessonId, studentId)`.
 
 #### Activity
-- `id`, `teacherId`, `classId`, `disciplineId`, `originLessonId?`, `assessmentPeriodId?`
+- `id`, `teacherId`, `classId`, `originLessonId?`, `assessmentPeriodId?`
+- `disciplineIds` (via `ActivityDiscipline` N:N; mín. 1)
 - `title` (até 200), `description?` (VARCHAR 5000, Markdown), `tag?` (VARCHAR 80, agrupamento)
 - `category`: EXERCISE | ASSIGNMENT | PROJECT | RESEARCH | SEMINAR | EXAM | OTHER
 - `mode`: INDIVIDUAL | GROUP
 - `maxScore` (default 100)
 - `createdOn`, `dueDate`
-- `originLessonId` é opcional. Sem aula de origem, `disciplineId` é obrigatório na criação.
-  Com aula de origem, `disciplineId` pode ser omitido (herda da aula) ou informado se for idêntico
-  ao da aula e estiver vinculado (`ClassDiscipline` ativo) à turma.
+- `originLessonId` é opcional. Sem aula de origem, ao menos uma disciplina é obrigatória.
+  Com aula de origem, a disciplina da aula entra automaticamente; outras disciplinas da turma
+  podem ser adicionadas (ex.: mesma atividade para LP I e LP II). Todas devem estar vinculadas
+  (`ClassDiscipline` ativo) à turma.
 - `gradeMode` (quando GROUP): SHARED | INDIVIDUAL  
   — SHARED: mesma nota para o grupo; INDIVIDUAL: nota por aluno mesmo em grupo.
+
+#### ActivityDiscipline
+- `id`, `teacherId`, `activityId`, `disciplineId`, `deletedAt?` (soft delete)
+- Vínculo N:N entre atividade e disciplinas; par `(activityId, disciplineId)` único.
 
 #### ActivityGroup / ActivityGroupMember
 - Grupo nomeado; membros = alunos da turma.
@@ -322,9 +329,10 @@ Unique `(activityId, studentId)`.
 
 ### Atividades e entregas
 18. Atividade pode opcionalmente ligar-se a uma aula (`originLessonId`); vive além dela via `dueDate`.
-   Sem aula de origem, `disciplineId` é obrigatório; com aula, a disciplina é herdada ou validada
-   como idêntica à da aula e deve estar vinculada à turma. Insights que cruzam ausência na aula de
-   origem só consideram atividades com `originLessonId`.
+   Disciplinas são N:N (`ActivityDiscipline`): mín. 1 sem aula de origem; com aula, a disciplina
+   da aula é incluída automaticamente e outras da turma podem ser adicionadas. Todas devem estar
+   vinculadas (`ClassDiscipline` ativo). Insights que cruzam ausência na aula de origem só
+   consideram atividades com `originLessonId`.
 19. Ao criar atividade, gerar `Submission PENDING` para cada aluno ativo da turma (individual) ou conforme grupos.
 20. Nota não pode exceder `maxScore` nem ser negativa.
 21. Em GROUP + SHARED, aplicar a mesma nota a todos os membros do grupo.
@@ -375,9 +383,10 @@ Unique `(activityId, studentId)`.
 - `GetStudentAttendanceSummary`
 
 ### Activities
-- `CreateActivity` (gera submissions; `disciplineId` herdado da aula de origem se omitido)
-- `UpdateActivity` / `SoftDeleteActivity`
+- `CreateActivity` (gera submissions; `disciplineIds` N:N; com aula, disciplina da aula incluída)
+- `UpdateActivity` (pode alterar `disciplineIds`) / `SoftDeleteActivity`
 - `CreateActivityGroups` / `AssignStudentsToGroup`
+- `GradeSubmissionsBulk` (mesma nota para N entregas selecionadas, máx. 200)
 - `UpdateSubmissionStatus` (PENDING ↔ SUBMITTED)
 - `GradeSubmission`
 - `GradeGroupShared`
@@ -579,7 +588,9 @@ Base: `/api/v1`
 - Sucesso: `{ data, meta? }`
 - Erro: `{ error: { code, message, details? } }`
 - Paginação: `page`, `pageSize`, `total`
-- Códigos: 200/201/204/400/401/403/404/409/422/500
+- Códigos: 200/201/204/400/401/403/404/409/422/429/500
+- Rate limit: desligado em `development`; em produção `RATE_LIMIT_MAX` (default 2000/15min);
+  login/register com limite próprio (30/15min).
 - Nunca expor stacktrace.
 
 Documentação: **Swagger/OpenAPI** gerado/mantido por módulo.

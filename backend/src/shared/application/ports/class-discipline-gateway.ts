@@ -5,4 +5,6 @@
  */
 export interface ClassDisciplineGateway {
   isLinked(teacherId: string, classId: string, disciplineId: string): Promise<boolean>;
+  /** Retorna true se todas as disciplinas informadas estão vinculadas ativamente à turma. */
+  areAllLinked(teacherId: string, classId: string, disciplineIds: string[]): Promise<boolean>;
 }

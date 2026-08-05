@@ -8,13 +8,13 @@ import type { ActivityRepository, CreateActivityInput } from '../ports/activity-
 import type { SubmissionRepository } from '../ports/submission-repository';
 
 /**
- * Entrada do controller: `originLessonId` e `disciplineId` são opcionais,
- * com regra cruzada — sem aula de origem, `disciplineId` é obrigatório;
- * com aula, a disciplina pode ser herdada da aula.
+ * Entrada do controller: `originLessonId` e disciplinas são opcionais no schema,
+ * com regra cruzada — sem aula de origem, ao menos uma disciplina é obrigatória;
+ * com aula, a disciplina da aula entra automaticamente (e podem ser adicionadas outras).
  */
-export type CreateActivityUseCaseInput = Omit<CreateActivityInput, 'disciplineId' | 'originLessonId'> & {
+export type CreateActivityUseCaseInput = Omit<CreateActivityInput, 'disciplineIds' | 'originLessonId'> & {
   originLessonId?: string | null;
-  disciplineId?: string;
+  disciplineIds?: string[];
 };
 
 /**
@@ -23,9 +23,8 @@ export type CreateActivityUseCaseInput = Omit<CreateActivityInput, 'disciplineId
  * matrícula ativa na turma. Para atividades em GROUP, o `groupId` é atribuído
  * posteriormente via CreateActivityGroups, sem bloquear o fluxo de criação.
  *
- * Aula de origem é opcional. Quando informada, a disciplina pode ser herdada dela
- * (ou validada como idêntica). Quando ausente, `disciplineId` deve ser informado
- * e estar vinculado à turma.
+ * Aula de origem é opcional. Disciplinas são N:N (`ActivityDiscipline`): a mesma
+ * atividade pode servir a várias disciplinas da turma (ex.: LP I e LP II).
  */
 export class CreateActivityUseCase {
   constructor(
@@ -44,7 +43,7 @@ export class CreateActivityUseCase {
     }
 
     const originLessonId = input.originLessonId ?? null;
-    let disciplineId: string;
+    let disciplineIds = [...new Set(input.disciplineIds ?? [])];
 
     if (originLessonId) {
       const originLesson = await this.lessons.findById(originLessonId, input.teacherId);
@@ -56,20 +55,20 @@ export class CreateActivityUseCase {
         throw new ValidationError('Origin lesson does not belong to the informed class');
       }
 
-      disciplineId = input.disciplineId ?? originLesson.disciplineId;
-      if (input.disciplineId && input.disciplineId !== originLesson.disciplineId) {
-        throw new ValidationError('disciplineId must match the origin lesson discipline');
+      if (!disciplineIds.includes(originLesson.disciplineId)) {
+        disciplineIds = [originLesson.disciplineId, ...disciplineIds];
       }
-    } else {
-      if (!input.disciplineId) {
-        throw new ValidationError('disciplineId is required when originLessonId is omitted');
-      }
-      disciplineId = input.disciplineId;
+    } else if (disciplineIds.length === 0) {
+      throw new ValidationError('At least one disciplineId is required when originLessonId is omitted');
     }
 
-    const linked = await this.classDisciplines.isLinked(input.teacherId, input.classId, disciplineId);
-    if (!linked) {
-      throw new ValidationError('Discipline is not linked to this class');
+    const allLinked = await this.classDisciplines.areAllLinked(
+      input.teacherId,
+      input.classId,
+      disciplineIds,
+    );
+    if (!allLinked) {
+      throw new ValidationError('One or more disciplines are not linked to this class');
     }
 
     if (input.maxScore <= 0) {
@@ -79,7 +78,7 @@ export class CreateActivityUseCase {
     const activity = await this.activities.create({
       ...input,
       originLessonId,
-      disciplineId,
+      disciplineIds,
     });
 
     const activeStudents = await this.enrollments.listActiveStudents(input.classId);

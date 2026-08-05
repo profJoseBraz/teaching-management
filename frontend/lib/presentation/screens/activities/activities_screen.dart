@@ -148,7 +148,7 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                                 ),
                                 subtitle: Text(
                                   '$tagPart'
-                                  '${disciplineNames[activity.disciplineId] ?? 'Disciplina'} · ${activity.categoryLabel} · '
+                                  '${activity.disciplineNamesLabel(disciplineNames)} · ${activity.categoryLabel} · '
                                   'Entrega em ${_dateFormat.format(activity.dueDate)} · '
                                   'Vale ${activity.maxScore.toStringAsFixed(0)} pts',
                                 ),
@@ -200,7 +200,7 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
       await ref.read(activitiesActionsProvider).create(
             widget.classId,
             originLessonId: draft.originLessonId,
-            disciplineId: draft.disciplineId,
+            disciplineIds: draft.disciplineIds,
             title: draft.title,
             description: draft.description,
             tag: draft.tag,
@@ -220,7 +220,7 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
 
 typedef _CreateActivityDraft = ({
   String? originLessonId,
-  String? disciplineId,
+  List<String> disciplineIds,
   String title,
   String? description,
   String? tag,
@@ -255,7 +255,7 @@ class _CreateActivityDialogState extends State<_CreateActivityDialog> {
   late final TextEditingController _maxScoreController;
 
   String? _originLessonId;
-  String? _disciplineId;
+  late final Set<String> _selectedDisciplineIds;
   String _category = 'ASSIGNMENT';
   String _mode = 'INDIVIDUAL';
   String _gradeMode = 'INDIVIDUAL';
@@ -269,7 +269,9 @@ class _CreateActivityDialogState extends State<_CreateActivityDialog> {
     _descriptionController = TextEditingController();
     _tagController = TextEditingController();
     _maxScoreController = TextEditingController(text: '100');
-    _disciplineId = widget.disciplines.length == 1 ? widget.disciplines.first.id : null;
+    _selectedDisciplineIds = {
+      if (widget.disciplines.length == 1) widget.disciplines.first.id,
+    };
     _dueDate = DateTime.now().add(const Duration(days: 7));
   }
 
@@ -284,7 +286,7 @@ class _CreateActivityDialogState extends State<_CreateActivityDialog> {
 
   void _submit() {
     final needsExplicitDiscipline = _originLessonId == null;
-    if (needsExplicitDiscipline && _disciplineId == null) {
+    if (needsExplicitDiscipline && _selectedDisciplineIds.isEmpty) {
       setState(() => _showDisciplineError = true);
       return;
     }
@@ -294,7 +296,7 @@ class _CreateActivityDialogState extends State<_CreateActivityDialog> {
     final tag = _tagController.text.trim();
     Navigator.of(context).pop<_CreateActivityDraft>((
       originLessonId: _originLessonId,
-      disciplineId: _disciplineId,
+      disciplineIds: _selectedDisciplineIds.toList(),
       title: _titleController.text.trim(),
       description: description.isEmpty ? null : description,
       tag: tag.isEmpty ? null : tag,
@@ -309,6 +311,7 @@ class _CreateActivityDialogState extends State<_CreateActivityDialog> {
   @override
   Widget build(BuildContext context) {
     final needsExplicitDiscipline = _originLessonId == null;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return AlertDialog(
       title: const Text('Nova atividade'),
@@ -370,37 +373,56 @@ class _CreateActivityDialogState extends State<_CreateActivityDialog> {
                 onChanged: (v) => setState(() {
                   _originLessonId = v;
                   _showDisciplineError = false;
-                  if (v != null) {
-                    _disciplineId = null;
-                  } else if (widget.disciplines.length == 1) {
-                    _disciplineId = widget.disciplines.first.id;
+                  if (v == null && widget.disciplines.length == 1) {
+                    _selectedDisciplineIds
+                      ..clear()
+                      ..add(widget.disciplines.first.id);
                   }
                 }),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String?>(
-                key: ValueKey('discipline-$_originLessonId-$needsExplicitDiscipline'),
-                initialValue: _disciplineId,
-                decoration: InputDecoration(
-                  labelText: needsExplicitDiscipline
-                      ? 'Disciplina'
-                      : 'Disciplina (opcional — herda da aula)',
-                ),
-                items: [
-                  if (!needsExplicitDiscipline)
-                    const DropdownMenuItem(value: null, child: Text('Herdar da aula de origem')),
-                  ...widget.disciplines.map((d) => DropdownMenuItem(value: d.id, child: Text(d.name))),
-                ],
-                onChanged: (v) => setState(() {
-                  _disciplineId = v;
-                  _showDisciplineError = false;
-                }),
+              Text(
+                needsExplicitDiscipline
+                    ? 'Disciplinas'
+                    : 'Disciplinas (opcional — a da aula é incluída automaticamente)',
+                style: Theme.of(context).textTheme.labelLarge,
               ),
+              const SizedBox(height: 4),
+              Text(
+                'Selecione uma ou mais — a mesma atividade pode servir a várias disciplinas.',
+                style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              if (widget.disciplines.isEmpty)
+                Text(
+                  'Esta turma ainda não tem disciplinas vinculadas.',
+                  style: TextStyle(color: colorScheme.error, fontSize: 13),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: widget.disciplines.map((d) {
+                    final selected = _selectedDisciplineIds.contains(d.id);
+                    return FilterChip(
+                      label: Text(d.name),
+                      selected: selected,
+                      onSelected: (checked) => setState(() {
+                        if (checked) {
+                          _selectedDisciplineIds.add(d.id);
+                        } else {
+                          _selectedDisciplineIds.remove(d.id);
+                        }
+                        _showDisciplineError = false;
+                      }),
+                    );
+                  }).toList(),
+                ),
               if (_showDisciplineError) ...[
                 const SizedBox(height: 6),
                 Text(
-                  'Selecione a disciplina (obrigatória sem aula de origem).',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
+                  'Selecione ao menos uma disciplina (obrigatória sem aula de origem).',
+                  style: TextStyle(color: colorScheme.error, fontSize: 12),
                 ),
               ],
               const SizedBox(height: 12),

@@ -71,6 +71,8 @@ ids existentes do ano letivo, sem repetição).
 - `GET /classes/{classId}/enrollments` · `POST /classes/{classId}/enrollments` (body `{ studentId }`)
 - `POST /classes/{classId}/enrollments/bulk` (body `{ studentIds: string[] }`) — matricula vários alunos de uma vez; já matriculados ou inexistentes vão em `skipped`
 - `DELETE /classes/{classId}/enrollments/{studentId}` — define `status=WITHDRAWN` (não remove o histórico)
+- Listagens de alunos/matrículas/entregas vêm em **ordem alfabética** pelo nome do aluno
+  (status da entrega não altera a posição na lista).
 - `GET /classes/{classId}/disciplines` — lista disciplinas vinculadas à turma (`ClassDiscipline`)
 - `POST /classes/{classId}/disciplines` (body `{ disciplineId }`) — vincula disciplina adicional à turma (deve estar na grade do curso)
 - `DELETE /classes/{classId}/disciplines/{disciplineId}` — desvincula (soft delete do vínculo)
@@ -117,12 +119,22 @@ ativo da turma.
 registro de chamada (via `SaveAttendance`); caso contrário retorna `422 VALIDATION_ERROR` listando os
 alunos pendentes. Não há preenchimento automático como `PRESENT`.
 
+### Rate limit
+
+- Em `development`, o limite geral da API fica **desligado** (evita travar o app Flutter
+  durante desenvolvimento).
+- Em produção: `RATE_LIMIT_MAX` requests por `RATE_LIMIT_WINDOW_MS` (default 2000 / 15min).
+- `POST /auth/login` e `POST /auth/register` têm limite próprio (30 / 15min), sempre ativo.
+- Resposta `429`: `{ error: { code: "RATE_LIMIT_EXCEEDED", message: "..." } }`.
+
 ### Activities (`src/modules/activities`)
 
 - `GET /classes/{classId}/activities` (aceita filtro `?disciplineId=` e `?tag=`) · `POST /classes/{classId}/activities`
 - `GET/PATCH/DELETE /activities/{id}` (`GET` inclui submissions + resumo agregado; `DELETE` = soft delete da atividade + submissions/grupos)
 - `POST /activities/{id}/groups` — cria/substitui grupos (`mode=GROUP`) e atribui `groupId` às submissions
 - `GET /activities/{id}/submissions`
+- `POST /activities/{id}/submissions/grade-bulk` — mesma nota para várias entregas
+  (body `{ submissionIds: uuid[], score, observations? }`, máx. 200; todas devem ser da atividade)
 - `PATCH /submissions/{id}` (body `{ status: 'PENDING' | 'SUBMITTED' }`) — alterna pendente/entregue; não altera `GRADED`
 - `POST /submissions/{id}/grade` — avalia individualmente (`score` entre `0` e `maxScore`)
 - `POST /activities/{activityId}/groups/{groupId}/grade-shared` — avalia grupo (`gradeMode=SHARED`), aplica a mesma nota a todos os membros
@@ -137,9 +149,13 @@ alunos pendentes. Não há preenchimento automático como `PRESENT`.
   armazena o texto bruto sem interpretar a marcação.
 - `tag` (opcional, até 80 chars): rótulo livre para agrupar várias atividades
   (ex.: `"Prova 1"`). Listagem aceita `?tag=` (case-insensitive).
-- `disciplineId` no body: obrigatório quando `originLessonId` está ausente; com aula de origem, pode
-  ser omitido (herda da aula) ou informado se for idêntico ao da aula e estiver vinculado
-  (`ClassDiscipline` ativo) à turma.
+- `disciplineIds: string[]` (forma preferida): a mesma atividade pode vincular-se a várias
+  disciplinas da turma (ex.: LP I e LP II). Sem `originLessonId`, mín. 1. Com aula de origem, a
+  disciplina da aula é incluída automaticamente; outras podem ser adicionadas. Todas devem estar
+  em `ClassDiscipline` ativo. `disciplineId` singular é aceito por compatibilidade e normalizado
+  em `disciplineIds`. Respostas de Create/Get/List/Update incluem `disciplineIds`.
+  `GET ?disciplineId=` filtra atividades que tenham aquele vínculo ativo.
+  `PATCH` aceita `disciplineIds` para substituir os vínculos.
 
 ### Insights & Dashboard (`src/modules/insights`)
 

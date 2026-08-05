@@ -14,7 +14,8 @@ export type Activity = {
   id: string;
   teacherId: string;
   classId: string;
-  disciplineId: string;
+  /** Disciplinas vinculadas à atividade (N:N via ActivityDiscipline). Mín. 1. */
+  disciplineIds: string[];
   originLessonId: string | null;
   assessmentPeriodId: string | null;
   title: string;

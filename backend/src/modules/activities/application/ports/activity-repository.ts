@@ -3,7 +3,7 @@ import type { Activity, ActivityCategory, ActivityGradeMode, ActivityMode } from
 export type CreateActivityInput = {
   teacherId: string;
   classId: string;
-  disciplineId: string;
+  disciplineIds: string[];
   originLessonId?: string | null;
   assessmentPeriodId?: string | null;
   title: string;
@@ -26,6 +26,7 @@ export type UpdateActivityInput = Partial<{
   maxScore: number;
   dueDate: Date;
   assessmentPeriodId: string | null;
+  disciplineIds: string[];
 }>;
 
 export type ListActivitiesFilters = {

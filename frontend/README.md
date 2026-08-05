@@ -141,9 +141,12 @@ Uma turma pode ministrar **mais de uma disciplina** simultaneamente
   aparece no topo do detalhe e filtra as abas Aulas, Conteúdos e Atividades
   (`?disciplineId=`).
 - **Aulas** e **Conteúdos** exigem a escolha de uma disciplina (dentre as
-  vinculadas à turma) no momento da criação. **Atividades** têm um seletor
-  opcional — quando não informado, o backend herda a disciplina da aula de
-  origem.
+  vinculadas à turma) no momento da criação. **Atividades** usam seleção
+  múltipla (`FilterChip`): a mesma atividade pode vincular-se a várias
+  disciplinas (ex.: LP I e LP II). Sem aula de origem, ao menos uma é
+  obrigatória; com aula, a disciplina da aula entra automaticamente.
+- **Nota em lote**: no detalhe da atividade, o ícone de checklist permite
+  selecionar vários alunos e atribuir a mesma nota a todos de uma vez.
 
 ## Seletor de ano letivo
 

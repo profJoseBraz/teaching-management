@@ -106,6 +106,7 @@ import { CreateActivityUseCase } from '../modules/activities/application/use-cas
 import { GetActivityUseCase } from '../modules/activities/application/use-cases/get-activity';
 import { GradeGroupSharedUseCase } from '../modules/activities/application/use-cases/grade-group-shared';
 import { GradeSubmissionUseCase } from '../modules/activities/application/use-cases/grade-submission';
+import { GradeSubmissionsBulkUseCase } from '../modules/activities/application/use-cases/grade-submissions-bulk';
 import { ListActivitiesUseCase } from '../modules/activities/application/use-cases/list-activities';
 import { ListSubmissionsUseCase } from '../modules/activities/application/use-cases/list-submissions';
 import { SoftDeleteActivityUseCase } from '../modules/activities/application/use-cases/soft-delete-activity';
@@ -407,7 +408,10 @@ export function createContainer() {
     enrollmentGateway,
     classDisciplineGateway,
   );
-  const updateActivityUseCase = new UpdateActivityUseCase(activityRepository);
+  const updateActivityUseCase = new UpdateActivityUseCase(
+    activityRepository,
+    classDisciplineGateway,
+  );
   const softDeleteActivityUseCase = new SoftDeleteActivityUseCase(activityRepository);
   const listActivitiesUseCase = new ListActivitiesUseCase(activityRepository, classOwnershipChecker);
   const getActivityUseCase = new GetActivityUseCase(activityRepository, submissionRepository);
@@ -425,6 +429,10 @@ export function createContainer() {
     activityRepository,
     activityGroupRepository,
   );
+  const gradeSubmissionsBulkUseCase = new GradeSubmissionsBulkUseCase(
+    submissionRepository,
+    activityRepository,
+  );
 
   const activityController = new ActivityController(
     createActivityUseCase,
@@ -439,6 +447,7 @@ export function createContainer() {
     updateSubmissionStatusUseCase,
     gradeSubmissionUseCase,
     gradeGroupSharedUseCase,
+    gradeSubmissionsBulkUseCase,
   );
 
   // --- Insights (dashboard) -------------------------------------------------

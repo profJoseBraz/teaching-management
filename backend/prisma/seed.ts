@@ -372,7 +372,6 @@ async function main() {
       data: {
         teacherId: teacher.id,
         classId: classEntity.id,
-        disciplineId: discipline.id,
         originLessonId: lessonWithAttendance.id,
         assessmentPeriodId: firstPeriod.id,
         title: 'Lista 1 — Consultas SQL',
@@ -383,6 +382,9 @@ async function main() {
         maxScore: 100,
         createdOn: new Date('2026-03-12'),
         dueDate: new Date('2026-03-20'),
+        activityDisciplines: {
+          create: [{ teacherId: teacher.id, disciplineId: discipline.id }],
+        },
       },
     });
   }

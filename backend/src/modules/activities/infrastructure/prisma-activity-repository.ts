@@ -18,12 +18,24 @@ import type {
   UpdateActivityInput,
 } from '../application/ports/activity-repository';
 
-function mapActivity(row: PrismaActivity): Activity {
+type ActivityWithLinks = PrismaActivity & {
+  activityDisciplines: { disciplineId: string }[];
+};
+
+const activeDisciplineInclude = {
+  activityDisciplines: {
+    where: { deletedAt: null },
+    select: { disciplineId: true },
+    orderBy: { createdAt: 'asc' as const },
+  },
+};
+
+function mapActivity(row: ActivityWithLinks): Activity {
   return {
     id: row.id,
     teacherId: row.teacherId,
     classId: row.classId,
-    disciplineId: row.disciplineId,
+    disciplineIds: row.activityDisciplines.map((link) => link.disciplineId),
     originLessonId: row.originLessonId,
     assessmentPeriodId: row.assessmentPeriodId,
     title: row.title,
@@ -41,13 +53,56 @@ function mapActivity(row: PrismaActivity): Activity {
   };
 }
 
+/**
+ * Sincroniza vínculos N:N: soft-delete dos que saíram, reativa existentes ou cria novos.
+ * Respeita unique `(activityId, disciplineId)` mesmo com soft delete.
+ */
+async function syncActivityDisciplines(
+  teacherId: string,
+  activityId: string,
+  disciplineIds: string[],
+): Promise<void> {
+  const uniqueIds = [...new Set(disciplineIds)];
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.activityDiscipline.updateMany({
+      where: {
+        teacherId,
+        activityId,
+        deletedAt: null,
+        disciplineId: { notIn: uniqueIds },
+      },
+      data: { deletedAt: now },
+    });
+
+    for (const disciplineId of uniqueIds) {
+      const existing = await tx.activityDiscipline.findFirst({
+        where: { teacherId, activityId, disciplineId },
+      });
+
+      if (existing) {
+        if (existing.deletedAt !== null) {
+          await tx.activityDiscipline.update({
+            where: { id: existing.id },
+            data: { deletedAt: null },
+          });
+        }
+      } else {
+        await tx.activityDiscipline.create({
+          data: { teacherId, activityId, disciplineId },
+        });
+      }
+    }
+  });
+}
+
 export class PrismaActivityRepository implements ActivityRepository {
   async create(input: CreateActivityInput): Promise<Activity> {
     const row = await prisma.activity.create({
       data: {
         teacherId: input.teacherId,
         classId: input.classId,
-        disciplineId: input.disciplineId,
         originLessonId: input.originLessonId ?? null,
         assessmentPeriodId: input.assessmentPeriodId ?? null,
         title: input.title,
@@ -58,12 +113,23 @@ export class PrismaActivityRepository implements ActivityRepository {
         gradeMode: input.gradeMode as PrismaActivityGradeMode,
         maxScore: input.maxScore,
         dueDate: input.dueDate,
+        activityDisciplines: {
+          create: [...new Set(input.disciplineIds)].map((disciplineId) => ({
+            teacherId: input.teacherId,
+            disciplineId,
+          })),
+        },
       },
+      include: activeDisciplineInclude,
     });
     return mapActivity(row);
   }
 
   async update(id: string, teacherId: string, input: UpdateActivityInput): Promise<Activity> {
+    if (input.disciplineIds !== undefined) {
+      await syncActivityDisciplines(teacherId, id, input.disciplineIds);
+    }
+
     const row = await prisma.activity.update({
       where: { id, teacherId, deletedAt: null },
       data: {
@@ -81,6 +147,7 @@ export class PrismaActivityRepository implements ActivityRepository {
           ? { assessmentPeriodId: input.assessmentPeriodId }
           : {}),
       },
+      include: activeDisciplineInclude,
     });
     return mapActivity(row);
   }
@@ -88,6 +155,7 @@ export class PrismaActivityRepository implements ActivityRepository {
   async findById(id: string, teacherId: string): Promise<Activity | null> {
     const row = await prisma.activity.findFirst({
       where: { id, teacherId, deletedAt: null },
+      include: activeDisciplineInclude,
     });
     return row ? mapActivity(row) : null;
   }
@@ -102,11 +170,18 @@ export class PrismaActivityRepository implements ActivityRepository {
         classId,
         teacherId,
         deletedAt: null,
-        ...(filters.disciplineId ? { disciplineId: filters.disciplineId } : {}),
+        ...(filters.disciplineId
+          ? {
+              activityDisciplines: {
+                some: { disciplineId: filters.disciplineId, deletedAt: null },
+              },
+            }
+          : {}),
         ...(filters.tag
           ? { tag: { equals: filters.tag, mode: 'insensitive' as const } }
           : {}),
       },
+      include: activeDisciplineInclude,
       orderBy: { dueDate: 'asc' },
     });
     return rows.map(mapActivity);
@@ -117,6 +192,10 @@ export class PrismaActivityRepository implements ActivityRepository {
     await prisma.$transaction([
       prisma.activity.updateMany({
         where: { id, teacherId, deletedAt: null },
+        data: { deletedAt: now },
+      }),
+      prisma.activityDiscipline.updateMany({
+        where: { activityId: id, teacherId, deletedAt: null },
         data: { deletedAt: now },
       }),
       prisma.submission.updateMany({

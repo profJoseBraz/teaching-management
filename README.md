@@ -100,7 +100,7 @@ Guia completo: [`frontend/README.md`](frontend/README.md)
 - Academic (anos, cursos, disciplinas, períodos avaliativos)
 - Students + Classes + Enrollments
 - Lessons + Contents + Attendance
-- Activities + Submissions + Groups + grading (descrição Markdown, tag para agrupar)
+- Activities + Submissions + Groups + grading (descrição Markdown, tag, N disciplinas por atividade)
 - Insights Engine + Dashboard
 - Reports (P0 + P1)
 
