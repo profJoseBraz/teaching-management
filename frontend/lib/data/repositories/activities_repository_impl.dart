@@ -21,7 +21,7 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
   Future<Activity> createActivity(
     String classId, {
     String? originLessonId,
-    String? disciplineId,
+    List<String> disciplineIds = const [],
     String? assessmentPeriodId,
     required String title,
     String? description,
@@ -35,7 +35,7 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
       _datasource.createActivity(
         classId,
         originLessonId: originLessonId,
-        disciplineId: disciplineId,
+        disciplineIds: disciplineIds,
         assessmentPeriodId: assessmentPeriodId,
         title: title,
         description: description,
@@ -56,6 +56,7 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
     required String category,
     required double maxScore,
     required DateTime dueDate,
+    List<String>? disciplineIds,
   }) =>
       _datasource.updateActivity(
         id,
@@ -65,6 +66,7 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
         category: category,
         maxScore: maxScore,
         dueDate: dueDate,
+        disciplineIds: disciplineIds,
       );
 
   @override
@@ -89,6 +91,20 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
   @override
   Future<Submission> gradeSubmission(String submissionId, {required double score, String? observations}) =>
       _datasource.gradeSubmission(submissionId, score: score, observations: observations);
+
+  @override
+  Future<List<Submission>> gradeSubmissionsBulk(
+    String activityId, {
+    required List<String> submissionIds,
+    required double score,
+    String? observations,
+  }) =>
+      _datasource.gradeSubmissionsBulk(
+        activityId,
+        submissionIds: submissionIds,
+        score: score,
+        observations: observations,
+      );
 
   @override
   Future<List<Submission>> gradeShared(

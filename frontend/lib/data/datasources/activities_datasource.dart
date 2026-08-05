@@ -4,22 +4,33 @@ import '../../domain/entities/activity_detail.dart';
 import '../../domain/entities/activity_group.dart';
 import '../../domain/entities/submission.dart';
 
-Activity activityFromJson(Map<String, dynamic> json) => Activity(
-      id: json['id'] as String,
-      classId: json['classId'] as String,
-      disciplineId: json['disciplineId'] as String,
-      originLessonId: json['originLessonId'] as String?,
-      assessmentPeriodId: json['assessmentPeriodId'] as String?,
-      title: json['title'] as String,
-      description: json['description'] as String?,
-      tag: json['tag'] as String?,
-      category: json['category'] as String? ?? 'ASSIGNMENT',
-      mode: json['mode'] as String? ?? 'INDIVIDUAL',
-      gradeMode: json['gradeMode'] as String? ?? 'INDIVIDUAL',
-      maxScore: (json['maxScore'] as num?)?.toDouble() ?? 100,
-      createdOn: DateTime.parse(json['createdOn'] as String),
-      dueDate: DateTime.parse(json['dueDate'] as String),
-    );
+Activity activityFromJson(Map<String, dynamic> json) {
+  final disciplineIds = (json['disciplineIds'] as List? ?? const [])
+      .cast<String>()
+      .toList();
+  // Compatibilidade com respostas antigas que ainda enviavam disciplineId singular.
+  final legacyId = json['disciplineId'] as String?;
+  if (disciplineIds.isEmpty && legacyId != null) {
+    disciplineIds.add(legacyId);
+  }
+
+  return Activity(
+    id: json['id'] as String,
+    classId: json['classId'] as String,
+    disciplineIds: disciplineIds,
+    originLessonId: json['originLessonId'] as String?,
+    assessmentPeriodId: json['assessmentPeriodId'] as String?,
+    title: json['title'] as String,
+    description: json['description'] as String?,
+    tag: json['tag'] as String?,
+    category: json['category'] as String? ?? 'ASSIGNMENT',
+    mode: json['mode'] as String? ?? 'INDIVIDUAL',
+    gradeMode: json['gradeMode'] as String? ?? 'INDIVIDUAL',
+    maxScore: (json['maxScore'] as num?)?.toDouble() ?? 100,
+    createdOn: DateTime.parse(json['createdOn'] as String),
+    dueDate: DateTime.parse(json['dueDate'] as String),
+  );
+}
 
 Submission submissionFromJson(Map<String, dynamic> json) => Submission(
       id: json['id'] as String,
@@ -88,8 +99,8 @@ class ActivitiesDatasource {
   Future<Activity> createActivity(
     String classId, {
     String? originLessonId,
-    /// Obrigatório sem [originLessonId]; com aula, pode herdar a disciplina.
-    String? disciplineId,
+    /// Obrigatório sem [originLessonId]; com aula, a disciplina da aula é incluída automaticamente.
+    List<String> disciplineIds = const [],
     String? assessmentPeriodId,
     required String title,
     String? description,
@@ -102,7 +113,7 @@ class ActivitiesDatasource {
   }) async {
     final response = await _apiClient.post('/classes/$classId/activities', data: {
       if (originLessonId != null) 'originLessonId': originLessonId,
-      if (disciplineId != null) 'disciplineId': disciplineId,
+      if (disciplineIds.isNotEmpty) 'disciplineIds': disciplineIds,
       if (assessmentPeriodId != null) 'assessmentPeriodId': assessmentPeriodId,
       'title': title,
       if (description != null) 'description': description,
@@ -124,6 +135,7 @@ class ActivitiesDatasource {
     required String category,
     required double maxScore,
     required DateTime dueDate,
+    List<String>? disciplineIds,
   }) async {
     final response = await _apiClient.patch('/activities/$id', data: {
       'title': title,
@@ -132,6 +144,7 @@ class ActivitiesDatasource {
       'category': category,
       'maxScore': maxScore,
       'dueDate': _formatDate(dueDate),
+      if (disciplineIds != null) 'disciplineIds': disciplineIds,
     });
     return activityFromJson(response['data'] as Map<String, dynamic>);
   }
@@ -175,6 +188,25 @@ class ActivitiesDatasource {
       if (observations != null) 'observations': observations,
     });
     return submissionFromJson(response['data'] as Map<String, dynamic>);
+  }
+
+  Future<List<Submission>> gradeSubmissionsBulk(
+    String activityId, {
+    required List<String> submissionIds,
+    required double score,
+    String? observations,
+  }) async {
+    final response = await _apiClient.post(
+      '/activities/$activityId/submissions/grade-bulk',
+      data: {
+        'submissionIds': submissionIds,
+        'score': score,
+        if (observations != null) 'observations': observations,
+      },
+    );
+    return (response['data'] as List)
+        .map((e) => submissionFromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<List<Submission>> gradeShared(

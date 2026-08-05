@@ -21,7 +21,12 @@ final studentSearchQueryProvider = StateProvider<String>((ref) => '');
 
 final studentsListProvider = FutureProvider<List<Student>>((ref) {
   final search = ref.watch(studentSearchQueryProvider);
-  return ref.watch(studentsRepositoryProvider).getStudents(search: search.isEmpty ? null : search);
+  return ref.watch(studentsRepositoryProvider).getStudents(search: search.isEmpty ? null : search).then(
+    (students) {
+      students.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      return students;
+    },
+  );
 });
 
 final studentDetailProvider = FutureProvider.family<Student, String>((ref, id) {

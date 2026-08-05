@@ -12,8 +12,8 @@
 | `REFRESH_TOKEN_SECRET` | sim | — | Segredo do refresh token (mín. 32 chars) |
 | `REFRESH_TOKEN_EXPIRES_IN` | não | `7d` | Expiração do refresh token |
 | `CORS_ORIGIN` | não | `*` | Origens permitidas (`*` ou lista CSV) |
-| `RATE_LIMIT_WINDOW_MS` | não | `900000` | Janela do rate limit (ms) |
-| `RATE_LIMIT_MAX` | não | `200` | Máx. requests por janela |
+| `RATE_LIMIT_WINDOW_MS` | não | `900000` | Janela do rate limit da API (ms). Em `development` o limite geral fica desligado. |
+| `RATE_LIMIT_MAX` | não | `2000` | Máx. requests por janela na API (produção). Login/register têm limite próprio (30/15min). |
 
 Modelo: `backend/.env.example`
 

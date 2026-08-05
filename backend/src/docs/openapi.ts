@@ -499,7 +499,11 @@ export const openApiDocument = {
         properties: {
           id: { type: 'string', format: 'uuid' },
           classId: { type: 'string', format: 'uuid' },
-          disciplineId: { type: 'string', format: 'uuid' },
+          disciplineIds: {
+            type: 'array',
+            items: { type: 'string', format: 'uuid' },
+            description: 'Disciplinas vinculadas (N:N via ActivityDiscipline). Mín. 1.',
+          },
           originLessonId: { type: 'string', format: 'uuid', nullable: true },
           assessmentPeriodId: { type: 'string', format: 'uuid', nullable: true },
           title: { type: 'string' },
@@ -667,11 +671,16 @@ export const openApiDocument = {
             nullable: true,
             description: 'Opcional — atividade pode existir sem aula de origem.',
           },
+          disciplineIds: {
+            type: 'array',
+            items: { type: 'string', format: 'uuid' },
+            description:
+              'Forma preferida. Sem `originLessonId`, mín. 1. Com aula, a disciplina da aula é incluída automaticamente; outras da turma podem ser adicionadas. Todas devem estar em ClassDiscipline ativo.',
+          },
           disciplineId: {
             type: 'string',
             format: 'uuid',
-            description:
-              'Obrigatório quando `originLessonId` está ausente. Com aula de origem, pode ser omitido (herda da aula) ou informado se coincidir com a disciplina da aula e estiver vinculado à turma.',
+            description: 'Legado — aceito por compatibilidade e normalizado em `disciplineIds`.',
           },
           assessmentPeriodId: { type: 'string', format: 'uuid', nullable: true },
           title: { type: 'string', maxLength: 200 },
@@ -723,6 +732,16 @@ export const openApiDocument = {
           gradeMode: { type: 'string', enum: ['SHARED', 'INDIVIDUAL'] },
           maxScore: { type: 'number' },
           dueDate: { type: 'string', format: 'date' },
+          disciplineIds: {
+            type: 'array',
+            items: { type: 'string', format: 'uuid' },
+            description: 'Substitui os vínculos N:N da atividade (mín. 1).',
+          },
+          disciplineId: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Legado — aceito por compatibilidade e normalizado em `disciplineIds`.',
+          },
         },
       },
       GetActivityResponse: {
@@ -768,6 +787,21 @@ export const openApiDocument = {
             enum: ['PENDING', 'SUBMITTED'],
             description: 'PENDING ↔ SUBMITTED. Entregas GRADED não podem mudar por este endpoint.',
           },
+        },
+      },
+      GradeSubmissionsBulkRequest: {
+        type: 'object',
+        required: ['submissionIds', 'score'],
+        properties: {
+          submissionIds: {
+            type: 'array',
+            items: { type: 'string', format: 'uuid' },
+            minItems: 1,
+            maxItems: 200,
+            description: 'IDs das entregas que receberão a mesma nota.',
+          },
+          score: { type: 'number', minimum: 0 },
+          observations: { type: 'string', nullable: true, maxLength: 2000 },
         },
       },
       GradeSubmissionRequest: {
@@ -2220,7 +2254,12 @@ export const openApiDocument = {
         security: [{ bearerAuth: [] }],
         parameters: [
           { name: 'classId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
-          { name: 'disciplineId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          {
+            name: 'disciplineId',
+            in: 'query',
+            schema: { type: 'string', format: 'uuid' },
+            description: 'Filtra atividades que tenham vínculo ativo com esta disciplina.',
+          },
           {
             name: 'tag',
             in: 'query',
@@ -2257,7 +2296,7 @@ export const openApiDocument = {
           '201': { description: 'Atividade criada' },
           '422': {
             description:
-              'Validação (ex.: originLessonId de outra turma; disciplineId ausente sem aula de origem)',
+              'Validação (ex.: originLessonId de outra turma; disciplineIds vazio sem aula de origem)',
           },
         },
       },
@@ -2354,6 +2393,35 @@ export const openApiDocument = {
               },
             },
           },
+        },
+      },
+    },
+    '/activities/{id}/submissions/grade-bulk': {
+      post: {
+        tags: ['Submissions'],
+        summary: 'Atribuir a mesma nota a várias entregas',
+        description:
+          'Seleção livre do professor (ex.: 10 alunos com nota 100). Máx. 200 IDs; todos devem pertencer à atividade.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/GradeSubmissionsBulkRequest' } } },
+        },
+        responses: {
+          '200': {
+            description: 'Entregas atualizadas',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { data: { type: 'array', items: { $ref: '#/components/schemas/Submission' } } },
+                },
+              },
+            },
+          },
+          '404': { description: 'Atividade não encontrada' },
+          '422': { description: 'score fora do intervalo, IDs inválidos ou de outra atividade' },
         },
       },
     },

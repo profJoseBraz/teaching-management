@@ -13,6 +13,7 @@ import {
   createActivitySchema,
   gradeGroupSharedSchema,
   gradeSubmissionSchema,
+  gradeSubmissionsBulkSchema,
   listActivitiesQuerySchema,
   submissionIdParamSchema,
   updateActivitySchema,
@@ -67,6 +68,12 @@ export function createActivityRoutes(
     '/activities/:id/submissions',
     validate(activityIdParamSchema, 'params'),
     asyncHandler(activityController.listSubmissions),
+  );
+  router.post(
+    '/activities/:id/submissions/grade-bulk',
+    validate(activityIdParamSchema, 'params'),
+    validate(gradeSubmissionsBulkSchema),
+    asyncHandler(submissionController.gradeBulk),
   );
 
   router.patch(

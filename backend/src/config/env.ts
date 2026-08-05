@@ -13,7 +13,8 @@ const envSchema = z.object({
   REFRESH_TOKEN_EXPIRES_IN: z.string().default('7d'),
   CORS_ORIGIN: z.string().default('*'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
-  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(200),
+  /** Produção: teto generoso — marcar N entregas gera 1 PATCH cada (sem refetch). */
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(2_000),
 });
 
 const parsed = envSchema.safeParse(process.env);

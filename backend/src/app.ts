@@ -1,6 +1,5 @@
 import cors from 'cors';
 import express from 'express';
-import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env';
@@ -17,6 +16,7 @@ import { createLessonRoutes } from './modules/lessons/presentation/lesson.routes
 import { createReportsRoutes } from './modules/reports/presentation/reports.routes';
 import { createStudentRoutes } from './modules/students/presentation/student.routes';
 import { errorHandler } from './shared/http/error-handler';
+import { apiRateLimit } from './shared/http/rate-limit';
 
 export function createApp(container: Container) {
   const app = express();
@@ -28,14 +28,7 @@ export function createApp(container: Container) {
     }),
   );
   app.use(express.json({ limit: '1mb' }));
-  app.use(
-    rateLimit({
-      windowMs: env.RATE_LIMIT_WINDOW_MS,
-      max: env.RATE_LIMIT_MAX,
-      standardHeaders: true,
-      legacyHeaders: false,
-    }),
-  );
+  app.use(apiRateLimit);
 
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument, { explorer: true }));
   app.get('/api/docs.json', (_req, res) => {

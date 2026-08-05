@@ -12,6 +12,7 @@ import '../../../core/widgets/status_chip.dart';
 import '../../../domain/entities/activity.dart';
 import '../../../domain/entities/activity_detail.dart';
 import '../../../domain/entities/enrollment.dart';
+import '../../../domain/entities/school_class.dart';
 import '../../../domain/entities/submission.dart';
 import '../../providers/activities_providers.dart';
 import '../../providers/classes_providers.dart';
@@ -52,52 +53,132 @@ class ActivityDetailScreen extends ConsumerStatefulWidget {
 
 class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
   _SubmissionFilter _filter = _SubmissionFilter.all;
+  var _selectionMode = false;
+  final Set<String> _selectedSubmissionIds = {};
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selectionMode = false;
+      _selectedSubmissionIds.clear();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(activityDetailProvider(widget.activityId));
     final enrollmentsAsync = ref.watch(enrollmentsProvider(widget.classId));
+    final classAsync = ref.watch(classDetailProvider(widget.classId));
+    final disciplineNames = {
+      for (final d in classAsync.valueOrNull?.disciplines ?? const <ClassDisciplineRef>[]) d.id: d.name,
+    };
+    final detail = detailAsync.valueOrNull;
+    final names = {
+      for (final e in enrollmentsAsync.valueOrNull ?? const <Enrollment>[])
+        e.studentId: e.student?.name ?? 'Aluno',
+    };
+    final filtered = detail == null
+        ? const <Submission>[]
+        : (detail.submissions.where((s) => _filter.matches(s.status)).toList()
+          ..sort((a, b) {
+            final byName = (names[a.studentId] ?? '').toLowerCase().compareTo(
+                  (names[b.studentId] ?? '').toLowerCase(),
+                );
+            return byName != 0 ? byName : a.studentId.compareTo(b.studentId);
+          }));
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Atividade'),
+        title: Text(_selectionMode ? '${_selectedSubmissionIds.length} selecionado(s)' : 'Atividade'),
+        leading: _selectionMode
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Cancelar seleção',
+                onPressed: _exitSelectionMode,
+              )
+            : null,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Editar atividade',
-            onPressed: () {
-              final detail = detailAsync.valueOrNull;
-              if (detail == null) return;
-              _openEditActivityDialog(detail.activity);
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Excluir atividade',
-            onPressed: () {
-              final detail = detailAsync.valueOrNull;
-              if (detail == null) return;
-              _confirmDeleteActivity(detail.activity);
-            },
-          ),
+          if (_selectionMode) ...[
+            TextButton(
+              onPressed: filtered.isEmpty
+                  ? null
+                  : () => setState(() {
+                        final visibleIds = filtered.map((s) => s.id).toSet();
+                        final allSelected = visibleIds.every(_selectedSubmissionIds.contains);
+                        if (allSelected) {
+                          _selectedSubmissionIds.removeAll(visibleIds);
+                        } else {
+                          _selectedSubmissionIds.addAll(visibleIds);
+                        }
+                      }),
+              child: Text(
+                filtered.isNotEmpty && filtered.every((s) => _selectedSubmissionIds.contains(s.id))
+                    ? 'Limpar'
+                    : 'Todos',
+              ),
+            ),
+          ] else ...[
+            IconButton(
+              icon: const Icon(Icons.checklist_rounded),
+              tooltip: 'Selecionar para nota em lote',
+              onPressed: detail == null
+                  ? null
+                  : () => setState(() {
+                        _selectionMode = true;
+                        _selectedSubmissionIds.clear();
+                      }),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Editar atividade',
+              onPressed: () {
+                final schoolClass = classAsync.valueOrNull;
+                if (detail == null || schoolClass == null) return;
+                _openEditActivityDialog(detail.activity, schoolClass.disciplines);
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Excluir atividade',
+              onPressed: () {
+                if (detail == null) return;
+                _confirmDeleteActivity(detail.activity);
+              },
+            ),
+          ],
           const SizedBox(width: 8),
         ],
       ),
+      bottomNavigationBar: _selectionMode
+          ? SafeArea(
+              child: Material(
+                elevation: 8,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: FilledButton.icon(
+                    onPressed: _selectedSubmissionIds.isEmpty || detail == null
+                        ? null
+                        : () => _openBulkGradeDialog(detail.activity.maxScore),
+                    icon: const Icon(Icons.grade_outlined),
+                    label: Text(
+                      _selectedSubmissionIds.isEmpty
+                          ? 'Selecione alunos'
+                          : 'Atribuir nota a ${_selectedSubmissionIds.length}',
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : null,
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(activityDetailProvider(widget.activityId)),
         child: AsyncValueWidget<ActivityDetail>(
           value: detailAsync,
           onRetry: () => ref.invalidate(activityDetailProvider(widget.activityId)),
           data: (detail) {
-            final names = {
-              for (final e in enrollmentsAsync.valueOrNull ?? const <Enrollment>[])
-                e.studentId: e.student?.name ?? 'Aluno',
-            };
             final activity = detail.activity;
-            final filtered = detail.submissions.where((s) => _filter.matches(s.status)).toList();
 
             return ListView(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.fromLTRB(16, 16, 16, _selectionMode ? 24 : 16),
               children: [
                 Card(
                   child: Padding(
@@ -123,6 +204,12 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
                                 avatar: const Icon(Icons.label_outline, size: 16),
                                 label: Text(activity.tag!),
                               ),
+                            ...activity.disciplineIds.map(
+                              (id) => Chip(
+                                avatar: const Icon(Icons.menu_book_outlined, size: 16),
+                                label: Text(disciplineNames[id] ?? 'Disciplina'),
+                              ),
+                            ),
                             Chip(label: Text(activity.categoryLabel)),
                             Chip(label: Text(activity.isGroup ? 'Em grupo' : 'Individual')),
                             Chip(label: Text(activity.isSharedGrade ? 'Nota compartilhada' : 'Nota individual')),
@@ -150,6 +237,15 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
                     ),
                   ),
                 Text('Entregas', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                if (_selectionMode) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Toque nos alunos para selecionar e atribuir a mesma nota a todos.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -178,52 +274,82 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
                   )
                 else
                   ...filtered.map(
-                    (submission) => Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        title: Text(names[submission.studentId] ?? submission.studentId),
-                        subtitle: submission.score != null
-                            ? Text(
-                                'Nota: ${submission.score!.toStringAsFixed(1)} / ${activity.maxScore.toStringAsFixed(0)}',
-                              )
+                    (submission) {
+                      final selected = _selectedSubmissionIds.contains(submission.id);
+                      return Card(
+                        key: ValueKey(submission.id),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        color: selected
+                            ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35)
                             : null,
-                        trailing: Wrap(
-                          spacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            StatusChip.submissionStatus(submission.status),
-                            if (submission.status == 'PENDING')
-                              IconButton(
-                                icon: const Icon(Icons.upload_outlined),
-                                tooltip: 'Marcar como entregue',
-                                onPressed: () => ref.read(activitiesActionsProvider).markSubmitted(
-                                      submission.id,
-                                      activityId: widget.activityId,
-                                    ),
-                              ),
-                            if (submission.status == 'SUBMITTED')
-                              IconButton(
-                                icon: const Icon(Icons.undo_rounded),
-                                tooltip: 'Voltar para pendente',
-                                onPressed: () => ref.read(activitiesActionsProvider).markPending(
-                                      submission.id,
-                                      activityId: widget.activityId,
-                                    ),
-                              ),
-                            if (submission.status != 'PENDING')
-                              IconButton(
-                                icon: const Icon(Icons.grade_outlined),
-                                tooltip: 'Avaliar',
-                                onPressed: () => _openGradeDialog(
-                                  activity.maxScore,
-                                  submission,
-                                  activity.isSharedGrade,
+                        child: ListTile(
+                          leading: _selectionMode
+                              ? Checkbox(
+                                  value: selected,
+                                  onChanged: (value) => setState(() {
+                                    if (value == true) {
+                                      _selectedSubmissionIds.add(submission.id);
+                                    } else {
+                                      _selectedSubmissionIds.remove(submission.id);
+                                    }
+                                  }),
+                                )
+                              : null,
+                          onTap: _selectionMode
+                              ? () => setState(() {
+                                    if (selected) {
+                                      _selectedSubmissionIds.remove(submission.id);
+                                    } else {
+                                      _selectedSubmissionIds.add(submission.id);
+                                    }
+                                  })
+                              : null,
+                          title: Text(names[submission.studentId] ?? submission.studentId),
+                          subtitle: submission.score != null
+                              ? Text(
+                                  'Nota: ${submission.score!.toStringAsFixed(1)} / ${activity.maxScore.toStringAsFixed(0)}',
+                                )
+                              : null,
+                          trailing: _selectionMode
+                              ? StatusChip.submissionStatus(submission.status)
+                              : Wrap(
+                                  spacing: 8,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    StatusChip.submissionStatus(submission.status),
+                                    if (submission.status == 'PENDING')
+                                      IconButton(
+                                        icon: const Icon(Icons.upload_outlined),
+                                        tooltip: 'Marcar como entregue',
+                                        onPressed: () => ref.read(activitiesActionsProvider).markSubmitted(
+                                              submission.id,
+                                              activityId: widget.activityId,
+                                            ),
+                                      ),
+                                    if (submission.status == 'SUBMITTED')
+                                      IconButton(
+                                        icon: const Icon(Icons.undo_rounded),
+                                        tooltip: 'Voltar para pendente',
+                                        onPressed: () => ref.read(activitiesActionsProvider).markPending(
+                                              submission.id,
+                                              activityId: widget.activityId,
+                                            ),
+                                      ),
+                                    if (submission.status != 'PENDING')
+                                      IconButton(
+                                        icon: const Icon(Icons.grade_outlined),
+                                        tooltip: 'Avaliar',
+                                        onPressed: () => _openGradeDialog(
+                                          activity.maxScore,
+                                          submission,
+                                          activity.isSharedGrade,
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                              ),
-                          ],
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
               ],
             );
@@ -231,6 +357,38 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openBulkGradeDialog(double maxScore) async {
+    final count = _selectedSubmissionIds.length;
+    if (count == 0) return;
+
+    final draft = await showDialog<_BulkGradeDraft>(
+      context: context,
+      useRootNavigator: true,
+      builder: (_) => _BulkGradeDialog(maxScore: maxScore, selectedCount: count),
+    );
+    if (draft == null || !mounted) return;
+
+    try {
+      await ref.read(activitiesActionsProvider).gradeSubmissionsBulk(
+            widget.activityId,
+            submissionIds: _selectedSubmissionIds.toList(),
+            score: draft.score,
+            observations: draft.observations,
+          );
+      if (!mounted) return;
+      _exitSelectionMode();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nota atribuída a $count aluno(s).')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final detail = e is AppException ? e.displayMessage : e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao avaliar em lote: $detail')),
+      );
+    }
   }
 
   Future<void> _confirmDeleteActivity(Activity activity) async {
@@ -281,10 +439,16 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
     }
   }
 
-  Future<void> _openEditActivityDialog(Activity activity) async {
+  Future<void> _openEditActivityDialog(
+    Activity activity,
+    List<ClassDisciplineRef> disciplines,
+  ) async {
     final draft = await showDialog<_EditActivityDraft>(
       context: context,
-      builder: (context) => _EditActivityDialog(activity: activity),
+      builder: (context) => _EditActivityDialog(
+        activity: activity,
+        disciplines: disciplines,
+      ),
     );
     if (draft == null || !mounted) return;
 
@@ -298,6 +462,7 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
             category: draft.category,
             maxScore: draft.maxScore,
             dueDate: draft.dueDate,
+            disciplineIds: draft.disciplineIds,
           );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -318,75 +483,39 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
     Submission submission,
     bool isSharedGrade,
   ) async {
-    final formKey = GlobalKey<FormState>();
-    final scoreController = TextEditingController(text: submission.score?.toString() ?? '');
-    final observationsController = TextEditingController(text: submission.observations ?? '');
-
-    final confirmed = await showDialog<bool>(
+    final draft = await showDialog<_BulkGradeDraft>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(isSharedGrade ? 'Avaliar grupo' : 'Avaliar entrega'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: scoreController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: 'Nota (0 a ${maxScore.toStringAsFixed(0)})'),
-                validator: (v) {
-                  final value = double.tryParse(v ?? '');
-                  if (value == null) return 'Informe um número';
-                  if (value < 0 || value > maxScore) return 'Deve estar entre 0 e ${maxScore.toStringAsFixed(0)}';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: observationsController,
-                decoration: const InputDecoration(labelText: 'Observações (opcional)'),
-                maxLines: 2,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) Navigator.pop(context, true);
-            },
-            child: const Text('Salvar nota'),
-          ),
-        ],
+      useRootNavigator: true,
+      builder: (_) => _SingleGradeDialog(
+        maxScore: maxScore,
+        isSharedGrade: isSharedGrade,
+        initialScore: submission.score,
+        initialObservations: submission.observations,
       ),
     );
+    if (draft == null || !mounted) return;
 
-    if (confirmed != true) return;
-    final score = double.parse(scoreController.text);
-    final observations = observationsController.text.trim().isEmpty ? null : observationsController.text.trim();
     final actions = ref.read(activitiesActionsProvider);
     try {
       if (isSharedGrade && submission.groupId != null) {
         await actions.gradeShared(
           widget.activityId,
           submission.groupId!,
-          score: score,
-          observations: observations,
+          score: draft.score,
+          observations: draft.observations,
         );
       } else {
         await actions.gradeSubmission(
           submission.id,
           activityId: widget.activityId,
-          score: score,
-          observations: observations,
+          score: draft.score,
+          observations: draft.observations,
         );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao avaliar: $e')));
-      }
+      if (!mounted) return;
+      final detail = e is AppException ? e.displayMessage : e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao avaliar: $detail')));
     }
   }
 
@@ -402,7 +531,8 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           final assigned = groups.expand((g) => g.studentIds).toSet();
-          final remaining = ungrouped.difference(assigned).toList();
+          final remaining = ungrouped.difference(assigned).toList()
+            ..sort((a, b) => (names[a] ?? '').toLowerCase().compareTo((names[b] ?? '').toLowerCase()));
 
           return AlertDialog(
             title: const Text('Configurar grupos'),
@@ -518,6 +648,191 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
   }
 }
 
+typedef _BulkGradeDraft = ({
+  double score,
+  String? observations,
+});
+
+/// Diálogo Stateful — controllers só são descartados no `dispose` do State
+/// (evita tela vermelha ao fechar o diálogo de nota).
+class _BulkGradeDialog extends StatefulWidget {
+  const _BulkGradeDialog({
+    required this.maxScore,
+    required this.selectedCount,
+  });
+
+  final double maxScore;
+  final int selectedCount;
+
+  @override
+  State<_BulkGradeDialog> createState() => _BulkGradeDialogState();
+}
+
+class _BulkGradeDialogState extends State<_BulkGradeDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _scoreController;
+  late final TextEditingController _observationsController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scoreController = TextEditingController();
+    _observationsController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _scoreController.dispose();
+    _observationsController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    final observations = _observationsController.text.trim();
+    Navigator.of(context).pop<_BulkGradeDraft>((
+      score: double.parse(_scoreController.text),
+      observations: observations.isEmpty ? null : observations,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxLabel = widget.maxScore.toStringAsFixed(0);
+    return AlertDialog(
+      title: Text('Nota para ${widget.selectedCount} aluno(s)'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'A mesma nota será aplicada a todos os selecionados.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _scoreController,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: InputDecoration(labelText: 'Nota (0 a $maxLabel)'),
+              validator: (v) {
+                final value = double.tryParse(v ?? '');
+                if (value == null) return 'Informe um número';
+                if (value < 0 || value > widget.maxScore) {
+                  return 'Deve estar entre 0 e $maxLabel';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _observationsController,
+              decoration: const InputDecoration(labelText: 'Observações (opcional)'),
+              maxLines: 2,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        FilledButton(onPressed: _submit, child: const Text('Salvar nota')),
+      ],
+    );
+  }
+}
+
+class _SingleGradeDialog extends StatefulWidget {
+  const _SingleGradeDialog({
+    required this.maxScore,
+    required this.isSharedGrade,
+    this.initialScore,
+    this.initialObservations,
+  });
+
+  final double maxScore;
+  final bool isSharedGrade;
+  final double? initialScore;
+  final String? initialObservations;
+
+  @override
+  State<_SingleGradeDialog> createState() => _SingleGradeDialogState();
+}
+
+class _SingleGradeDialogState extends State<_SingleGradeDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _scoreController;
+  late final TextEditingController _observationsController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scoreController = TextEditingController(
+      text: widget.initialScore?.toString() ?? '',
+    );
+    _observationsController = TextEditingController(
+      text: widget.initialObservations ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _scoreController.dispose();
+    _observationsController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    final observations = _observationsController.text.trim();
+    Navigator.of(context).pop<_BulkGradeDraft>((
+      score: double.parse(_scoreController.text),
+      observations: observations.isEmpty ? null : observations,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxLabel = widget.maxScore.toStringAsFixed(0);
+    return AlertDialog(
+      title: Text(widget.isSharedGrade ? 'Avaliar grupo' : 'Avaliar entrega'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _scoreController,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: InputDecoration(labelText: 'Nota (0 a $maxLabel)'),
+              validator: (v) {
+                final value = double.tryParse(v ?? '');
+                if (value == null) return 'Informe um número';
+                if (value < 0 || value > widget.maxScore) {
+                  return 'Deve estar entre 0 e $maxLabel';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _observationsController,
+              decoration: const InputDecoration(labelText: 'Observações (opcional)'),
+              maxLines: 2,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        FilledButton(onPressed: _submit, child: const Text('Salvar nota')),
+      ],
+    );
+  }
+}
+
 typedef _EditActivityDraft = ({
   String title,
   String? description,
@@ -525,14 +840,19 @@ typedef _EditActivityDraft = ({
   String category,
   double maxScore,
   DateTime dueDate,
+  List<String> disciplineIds,
 });
 
 /// Diálogo Stateful para descartar controllers só no `dispose` do State
 /// (evita assertion `_dependents.isEmpty` ao salvar).
 class _EditActivityDialog extends StatefulWidget {
-  const _EditActivityDialog({required this.activity});
+  const _EditActivityDialog({
+    required this.activity,
+    required this.disciplines,
+  });
 
   final Activity activity;
+  final List<ClassDisciplineRef> disciplines;
 
   @override
   State<_EditActivityDialog> createState() => _EditActivityDialogState();
@@ -546,6 +866,8 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
   late final TextEditingController _maxScoreController;
   late String _category;
   late DateTime _dueDate;
+  late final Set<String> _selectedDisciplineIds;
+  var _showDisciplineError = false;
 
   @override
   void initState() {
@@ -557,6 +879,7 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
     _maxScoreController = TextEditingController(text: activity.maxScore.toStringAsFixed(0));
     _category = activity.category;
     _dueDate = activity.dueDate;
+    _selectedDisciplineIds = {...activity.disciplineIds};
   }
 
   @override
@@ -569,6 +892,10 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
   }
 
   void _save() {
+    if (_selectedDisciplineIds.isEmpty) {
+      setState(() => _showDisciplineError = true);
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     final maxScore = double.parse(_maxScoreController.text);
     final description = _descriptionController.text.trim();
@@ -580,11 +907,14 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
       category: _category,
       maxScore: maxScore,
       dueDate: _dueDate,
+      disciplineIds: _selectedDisciplineIds.toList(),
     ));
   }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return AlertDialog(
       title: const Text('Editar atividade'),
       content: Form(
@@ -592,6 +922,7 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TextFormField(
                 controller: _titleController,
@@ -612,6 +943,35 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
                 maxLength: 80,
                 textCapitalization: TextCapitalization.sentences,
               ),
+              const SizedBox(height: 12),
+              Text('Disciplinas', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: widget.disciplines.map((d) {
+                  final selected = _selectedDisciplineIds.contains(d.id);
+                  return FilterChip(
+                    label: Text(d.name),
+                    selected: selected,
+                    onSelected: (checked) => setState(() {
+                      if (checked) {
+                        _selectedDisciplineIds.add(d.id);
+                      } else {
+                        _selectedDisciplineIds.remove(d.id);
+                      }
+                      _showDisciplineError = false;
+                    }),
+                  );
+                }).toList(),
+              ),
+              if (_showDisciplineError) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Selecione ao menos uma disciplina.',
+                  style: TextStyle(color: colorScheme.error, fontSize: 12),
+                ),
+              ],
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _category,

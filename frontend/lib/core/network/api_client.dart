@@ -116,6 +116,13 @@ class ApiClient {
     if (e.response?.statusCode == 401) {
       return AppException.unauthorized();
     }
+    if (e.response?.statusCode == 429) {
+      return const AppException(
+        code: 'RATE_LIMIT_EXCEEDED',
+        message: 'Muitas requisições em pouco tempo. Aguarde um momento e tente novamente.',
+        statusCode: 429,
+      );
+    }
     return AppException(
       code: 'UNKNOWN_ERROR',
       message: 'Erro inesperado. Tente novamente.',

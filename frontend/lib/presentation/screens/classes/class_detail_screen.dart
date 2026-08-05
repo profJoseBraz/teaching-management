@@ -555,7 +555,12 @@ class _EnrollmentsTab extends ConsumerWidget {
           emptyIcon: Icons.people_outline_rounded,
           emptyMessage: 'Nenhum aluno matriculado nesta turma ainda.',
           data: (enrollments) {
-            final active = enrollments.where((e) => e.isActive).toList();
+            final active = enrollments.where((e) => e.isActive).toList()
+              ..sort(
+                (a, b) => (a.student?.name ?? '')
+                    .toLowerCase()
+                    .compareTo((b.student?.name ?? '').toLowerCase()),
+              );
             return ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               itemCount: active.length,
@@ -563,6 +568,7 @@ class _EnrollmentsTab extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final enrollment = active[index];
                 return Card(
+                  key: ValueKey(enrollment.studentId),
                   child: ListTile(
                     title: Text(enrollment.student?.name ?? 'Aluno'),
                     subtitle: enrollment.student?.registryCode != null

@@ -122,7 +122,8 @@ void _invalidateBranchProviders(WidgetRef ref, int index) {
       ref.invalidate(lessonDetailProvider);
       ref.invalidate(contentsListProvider);
       ref.invalidate(activitiesListProvider);
-      ref.invalidate(activityDetailProvider);
+      // Não invalida activityDetailProvider: cada detalhe visitado geraria um GET
+      // e, com várias turmas/atividades em cache, estoura o rate limit da API.
     case 2:
       ref.invalidate(studentsListProvider);
       ref.invalidate(studentDetailProvider);

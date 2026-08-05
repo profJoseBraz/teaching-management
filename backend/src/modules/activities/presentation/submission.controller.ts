@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import type { GradeGroupSharedUseCase } from '../application/use-cases/grade-group-shared';
 import type { GradeSubmissionUseCase } from '../application/use-cases/grade-submission';
+import type { GradeSubmissionsBulkUseCase } from '../application/use-cases/grade-submissions-bulk';
 import type {
   UpdateSubmissionStatusUseCase,
   UpdatableSubmissionStatus,
@@ -11,6 +12,7 @@ export class SubmissionController {
     private readonly updateSubmissionStatusUseCase: UpdateSubmissionStatusUseCase,
     private readonly gradeSubmissionUseCase: GradeSubmissionUseCase,
     private readonly gradeGroupSharedUseCase: GradeGroupSharedUseCase,
+    private readonly gradeSubmissionsBulkUseCase: GradeSubmissionsBulkUseCase,
   ) {}
 
   update = async (req: Request, res: Response): Promise<void> => {
@@ -38,6 +40,23 @@ export class SubmissionController {
       activityId,
       groupId,
       req.auth!.teacherId,
+      score,
+      observations,
+    );
+    res.status(200).json({ data: submissions });
+  };
+
+  gradeBulk = async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params as { id: string };
+    const { submissionIds, score, observations } = req.body as {
+      submissionIds: string[];
+      score: number;
+      observations?: string | null;
+    };
+    const submissions = await this.gradeSubmissionsBulkUseCase.execute(
+      id,
+      req.auth!.teacherId,
+      submissionIds,
       score,
       observations,
     );

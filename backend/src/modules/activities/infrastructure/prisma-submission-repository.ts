@@ -37,6 +37,7 @@ export class PrismaSubmissionRepository implements SubmissionRepository {
   async listByActivity(activityId: string, teacherId: string): Promise<Submission[]> {
     const rows = await prisma.submission.findMany({
       where: { activityId, teacherId, deletedAt: null },
+      orderBy: { student: { name: 'asc' } },
     });
     return rows.map(mapSubmission);
   }
@@ -46,6 +47,16 @@ export class PrismaSubmissionRepository implements SubmissionRepository {
       where: { id, teacherId, deletedAt: null },
     });
     return row ? mapSubmission(row) : null;
+  }
+
+  async findByIds(ids: string[], teacherId: string): Promise<Submission[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+    const rows = await prisma.submission.findMany({
+      where: { id: { in: ids }, teacherId, deletedAt: null },
+    });
+    return rows.map(mapSubmission);
   }
 
   async updateStatus(
@@ -80,6 +91,34 @@ export class PrismaSubmissionRepository implements SubmissionRepository {
       },
     });
     return mapSubmission(row);
+  }
+
+  async gradeMany(
+    ids: string[],
+    teacherId: string,
+    score: number,
+    observations?: string | null,
+  ): Promise<Submission[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const now = new Date();
+    await prisma.submission.updateMany({
+      where: { id: { in: ids }, teacherId, deletedAt: null },
+      data: {
+        status: 'GRADED' as PrismaSubmissionStatus,
+        score,
+        gradedAt: now,
+        observations: observations ?? null,
+      },
+    });
+
+    const rows = await prisma.submission.findMany({
+      where: { id: { in: ids }, teacherId, deletedAt: null },
+      orderBy: { student: { name: 'asc' } },
+    });
+    return rows.map(mapSubmission);
   }
 
   async assignGroup(submissionIds: string[], groupId: string): Promise<void> {

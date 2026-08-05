@@ -9,7 +9,7 @@ abstract interface class ActivitiesRepository {
   Future<Activity> createActivity(
     String classId, {
     String? originLessonId,
-    String? disciplineId,
+    List<String> disciplineIds = const [],
     String? assessmentPeriodId,
     required String title,
     String? description,
@@ -28,6 +28,7 @@ abstract interface class ActivitiesRepository {
     required String category,
     required double maxScore,
     required DateTime dueDate,
+    List<String>? disciplineIds,
   });
   Future<void> deleteActivity(String id);
 
@@ -40,6 +41,12 @@ abstract interface class ActivitiesRepository {
   Future<Submission> markSubmitted(String submissionId);
   Future<Submission> markPending(String submissionId);
   Future<Submission> gradeSubmission(String submissionId, {required double score, String? observations});
+  Future<List<Submission>> gradeSubmissionsBulk(
+    String activityId, {
+    required List<String> submissionIds,
+    required double score,
+    String? observations,
+  });
   Future<List<Submission>> gradeShared(
     String activityId,
     String groupId, {

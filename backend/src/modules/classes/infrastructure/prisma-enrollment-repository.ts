@@ -64,7 +64,7 @@ export class PrismaEnrollmentRepository implements EnrollmentRepository {
           select: { id: true, name: true, registryCode: true, email: true },
         },
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { student: { name: 'asc' } },
     });
 
     return rows.map((row) => ({
