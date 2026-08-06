@@ -1,3 +1,4 @@
+import type { AssessmentPeriodGateway } from '../../../../shared/application/ports/assessment-period-gateway';
 import type { ClassDisciplineGateway } from '../../../../shared/application/ports/class-discipline-gateway';
 import type { ClassOwnershipChecker } from '../../../../shared/application/ports/class-ownership-checker';
 import type { EnrollmentGateway } from '../../../../shared/application/ports/enrollment-gateway';
@@ -34,6 +35,7 @@ export class CreateActivityUseCase {
     private readonly lessons: LessonGateway,
     private readonly enrollments: EnrollmentGateway,
     private readonly classDisciplines: ClassDisciplineGateway,
+    private readonly assessmentPeriods: AssessmentPeriodGateway,
   ) {}
 
   async execute(input: CreateActivityUseCaseInput): Promise<Activity> {
@@ -41,6 +43,12 @@ export class CreateActivityUseCase {
     if (!classOwned) {
       throw new ValidationError('Class not found for this teacher');
     }
+
+    await this.assessmentPeriods.assertUsableForClass({
+      teacherId: input.teacherId,
+      classId: input.classId,
+      assessmentPeriodId: input.assessmentPeriodId,
+    });
 
     const originLessonId = input.originLessonId ?? null;
     let disciplineIds = [...new Set(input.disciplineIds ?? [])];

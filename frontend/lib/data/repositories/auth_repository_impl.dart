@@ -16,6 +16,9 @@ class AuthRepositoryImpl implements AuthRepository {
       _datasource.register(name: name, email: email, password: password);
 
   @override
+  Future<void> refresh() => _datasource.refresh();
+
+  @override
   Future<User> me() => _datasource.me();
 
   @override

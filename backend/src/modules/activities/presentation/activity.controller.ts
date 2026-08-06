@@ -4,6 +4,8 @@ import type { CreateActivityUseCase } from '../application/use-cases/create-acti
 import type { GetActivityUseCase } from '../application/use-cases/get-activity';
 import type { ListActivitiesUseCase } from '../application/use-cases/list-activities';
 import type { ListSubmissionsUseCase } from '../application/use-cases/list-submissions';
+import type { MarkActivityEvaluatedUseCase } from '../application/use-cases/mark-activity-evaluated';
+import type { ReopenActivityEvaluationUseCase } from '../application/use-cases/reopen-activity-evaluation';
 import type { SoftDeleteActivityUseCase } from '../application/use-cases/soft-delete-activity';
 import type { UpdateActivityUseCase } from '../application/use-cases/update-activity';
 
@@ -16,14 +18,21 @@ export class ActivityController {
     private readonly getActivityUseCase: GetActivityUseCase,
     private readonly createActivityGroupsUseCase: CreateActivityGroupsUseCase,
     private readonly listSubmissionsUseCase: ListSubmissionsUseCase,
+    private readonly markActivityEvaluatedUseCase: MarkActivityEvaluatedUseCase,
+    private readonly reopenActivityEvaluationUseCase: ReopenActivityEvaluationUseCase,
   ) {}
 
   list = async (req: Request, res: Response): Promise<void> => {
     const { classId } = req.params as { classId: string };
-    const { disciplineId, tag } = req.query as { disciplineId?: string; tag?: string };
+    const { disciplineId, tag, assessmentPeriodId } = req.query as {
+      disciplineId?: string;
+      tag?: string;
+      assessmentPeriodId?: string;
+    };
     const activities = await this.listActivitiesUseCase.execute(classId, req.auth!.teacherId, {
       disciplineId,
       tag,
+      assessmentPeriodId,
     });
     res.status(200).json({ data: activities });
   };
@@ -54,6 +63,18 @@ export class ActivityController {
     const { id } = req.params as { id: string };
     await this.softDeleteActivityUseCase.execute(id, req.auth!.teacherId);
     res.status(204).send();
+  };
+
+  markEvaluated = async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params as { id: string };
+    const activity = await this.markActivityEvaluatedUseCase.execute(id, req.auth!.teacherId);
+    res.status(200).json({ data: activity });
+  };
+
+  reopenEvaluation = async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params as { id: string };
+    const activity = await this.reopenActivityEvaluationUseCase.execute(id, req.auth!.teacherId);
+    res.status(200).json({ data: activity });
   };
 
   createGroups = async (req: Request, res: Response): Promise<void> => {

@@ -111,10 +111,10 @@ class AcademicDatasource {
     return courseFromJson(response['data'] as Map<String, dynamic>);
   }
 
-  Future<Course> updateCourse(String id, {String? name, String? description}) async {
+  Future<Course> updateCourse(String id, {required String name, String? description}) async {
     final response = await _apiClient.patch('/courses/$id', data: {
-      if (name != null) 'name': name,
-      if (description != null) 'description': description,
+      'name': name,
+      'description': description,
     });
     return courseFromJson(response['data'] as Map<String, dynamic>);
   }

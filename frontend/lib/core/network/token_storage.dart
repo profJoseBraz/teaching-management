@@ -24,8 +24,11 @@ class TokenStorage {
     await _storage.delete(key: _refreshTokenKey);
   }
 
+  /// Há sessão se existir access ou refresh (access pode estar expirado).
   Future<bool> hasToken() async {
-    final token = await readAccessToken();
-    return token != null && token.isNotEmpty;
+    final access = await readAccessToken();
+    if (access != null && access.isNotEmpty) return true;
+    final refresh = await readRefreshToken();
+    return refresh != null && refresh.isNotEmpty;
   }
 }

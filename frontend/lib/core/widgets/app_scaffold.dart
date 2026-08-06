@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../presentation/providers/academic_providers.dart';
 import '../../presentation/providers/activities_providers.dart';
+import '../../presentation/providers/agenda_providers.dart';
 import '../../presentation/providers/classes_providers.dart';
 import '../../presentation/providers/contents_providers.dart';
 import '../../presentation/providers/dashboard_providers.dart';
@@ -28,6 +29,7 @@ const _destinations = [
   _Destination('Dashboard', Icons.space_dashboard_outlined, Icons.space_dashboard),
   _Destination('Turmas', Icons.school_outlined, Icons.school),
   _Destination('Alunos', Icons.people_outline_rounded, Icons.people_rounded),
+  _Destination('Agenda', Icons.menu_book_outlined, Icons.menu_book_rounded),
   _Destination('Relatórios', Icons.bar_chart_outlined, Icons.bar_chart_rounded),
   _Destination('Config', Icons.settings_outlined, Icons.settings_rounded),
 ];
@@ -42,6 +44,9 @@ class AppScaffold extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Mantém sincronizado o período quando o ano letivo muda.
+    ref.watch(academicYearPeriodSyncProvider);
+
     final isWide = MediaQuery.sizeOf(context).width >= kWideLayoutBreakpoint;
 
     final body = navigationShell;
@@ -51,6 +56,8 @@ class AppScaffold extends ConsumerWidget {
         title: Text(_destinations[navigationShell.currentIndex].label),
         actions: [
           const _AcademicYearSelector(),
+          const SizedBox(width: 4),
+          const _AssessmentPeriodSelector(),
           const SizedBox(width: 8),
           _UserMenu(),
           const SizedBox(width: 8),
@@ -122,17 +129,21 @@ void _invalidateBranchProviders(WidgetRef ref, int index) {
       ref.invalidate(lessonDetailProvider);
       ref.invalidate(contentsListProvider);
       ref.invalidate(activitiesListProvider);
+      final yearId = ref.read(effectiveAcademicYearIdProvider);
+      if (yearId != null) ref.invalidate(assessmentPeriodsProvider(yearId));
       // Não invalida activityDetailProvider: cada detalhe visitado geraria um GET
       // e, com várias turmas/atividades em cache, estoura o rate limit da API.
     case 2:
       ref.invalidate(studentsListProvider);
       ref.invalidate(studentDetailProvider);
     case 3:
+      ref.invalidate(agendaNotesProvider);
+    case 4:
       ref.invalidate(classesListProvider);
       ref.invalidate(coursesProvider);
       ref.invalidate(disciplinesProvider);
       ref.read(reportsControllerProvider.notifier).clear();
-    case 4:
+    case 5:
       ref.invalidate(academicYearsProvider);
       ref.invalidate(coursesProvider);
       ref.invalidate(disciplinesProvider);
@@ -193,6 +204,69 @@ class _AcademicYearSelector extends ConsumerWidget {
         padding: EdgeInsets.all(4),
         child: CircularProgressIndicator(strokeWidth: 2),
       )),
+      error: (_, _) => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _AssessmentPeriodSelector extends ConsumerWidget {
+  const _AssessmentPeriodSelector();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final periodsAsync = ref.watch(effectiveYearPeriodsProvider);
+    final effectivePeriod = ref.watch(effectiveAssessmentPeriodProvider);
+
+    return periodsAsync.when(
+      data: (periods) {
+        if (periods.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.view_timeline_outlined, size: 20, color: Theme.of(context).disabledColor),
+                const SizedBox(width: 6),
+                Text('Sem período', style: TextStyle(color: Theme.of(context).disabledColor)),
+              ],
+            ),
+          );
+        }
+        final sorted = [...periods]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        return PopupMenuButton<String>(
+          tooltip: 'Selecionar período avaliativo',
+          initialValue: effectivePeriod?.id,
+          onSelected: (id) => ref.read(selectedAssessmentPeriodIdProvider.notifier).select(id),
+          itemBuilder: (context) => sorted
+              .map(
+                (period) => PopupMenuItem(
+                  value: period.id,
+                  child: Text(period.name),
+                ),
+              )
+              .toList(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.view_timeline_outlined, size: 20),
+                const SizedBox(width: 6),
+                Text(effectivePeriod?.name ?? '—'),
+                const Icon(Icons.arrow_drop_down_rounded),
+              ],
+            ),
+          ),
+        );
+      },
+      loading: () => const SizedBox(
+        width: 24,
+        height: 24,
+        child: Padding(
+          padding: EdgeInsets.all(4),
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
       error: (_, _) => const SizedBox.shrink(),
     );
   }

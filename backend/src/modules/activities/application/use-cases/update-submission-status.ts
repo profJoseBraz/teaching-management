@@ -5,9 +5,10 @@ import type { SubmissionRepository } from '../ports/submission-repository';
 export type UpdatableSubmissionStatus = Extract<SubmissionStatus, 'PENDING' | 'SUBMITTED'>;
 
 /**
- * Atualiza o status da entrega entre PENDING e SUBMITTED.
- * GRADED não pode ser alterado por este fluxo (use a avaliação).
- * SUBMITTED → PENDING permite corrigir marcação acidental de “entregue”.
+ * Atualiza o status da entrega:
+ * - PENDING ↔ SUBMITTED
+ * - GRADED → PENDING (corrige avaliação lançada por engano; limpa nota)
+ * GRADED → SUBMITTED não é permitido por este fluxo.
  */
 export class UpdateSubmissionStatusUseCase {
   constructor(private readonly submissions: SubmissionRepository) {}
@@ -22,19 +23,22 @@ export class UpdateSubmissionStatusUseCase {
       throw new NotFoundError('Submission not found');
     }
 
-    if (submission.status === 'GRADED') {
-      throw new ValidationError('Cannot change status of a graded submission');
-    }
-
     if (submission.status === status) {
       return submission;
+    }
+
+    if (submission.status === 'GRADED') {
+      if (status !== 'PENDING') {
+        throw new ValidationError('Graded submissions can only be reverted to PENDING');
+      }
+      return this.submissions.resetToPending(submissionId, teacherId);
     }
 
     if (status === 'SUBMITTED') {
       return this.submissions.updateStatus(submissionId, teacherId, 'SUBMITTED', new Date());
     }
 
-    // PENDING — limpa submittedAt
+    // PENDING a partir de SUBMITTED — limpa submittedAt
     return this.submissions.updateStatus(submissionId, teacherId, 'PENDING', null);
   }
 }

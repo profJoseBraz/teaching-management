@@ -7,6 +7,12 @@ Migration inicial: `backend/prisma/migrations/20260803180000_init/`
 
 Todas as tabelas de negócio possuem `teacher_id` (exceto junções puras como `lesson_contents` e `activity_group_members`, subordinadas a agregados já isolados).
 
+### Agenda
+
+| Tabela | Descrição |
+|--------|-----------|
+| `agenda_notes` | Anotações do professor (várias por data); `completed` (bool, default false) |
+
 ## Subir o banco
 
 ### Opção A — Docker Compose (recomendado)

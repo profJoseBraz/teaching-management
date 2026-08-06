@@ -5,6 +5,7 @@ class ContentItem {
     required this.id,
     required this.classId,
     required this.disciplineId,
+    this.assessmentPeriodId,
     required this.title,
     this.description,
     required this.status,
@@ -15,6 +16,7 @@ class ContentItem {
   final String id;
   final String classId;
   final String disciplineId;
+  final String? assessmentPeriodId;
   final String title;
   final String? description;
   final String status;

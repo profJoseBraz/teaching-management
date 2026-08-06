@@ -4,6 +4,7 @@ import '../../data/datasources/lessons_datasource.dart';
 import '../../data/repositories/lessons_repository_impl.dart';
 import '../../domain/entities/lesson.dart';
 import '../../domain/repositories/lessons_repository.dart';
+import 'academic_providers.dart';
 import 'session_providers.dart';
 
 final lessonsDatasourceProvider = Provider<LessonsDatasource>(
@@ -14,17 +15,21 @@ final lessonsRepositoryProvider = Provider<LessonsRepository>(
   (ref) => LessonsRepositoryImpl(ref.watch(lessonsDatasourceProvider)),
 );
 
-/// Filtro de listagem: turma obrigatória + disciplina opcional (`null` =
-/// todas as disciplinas vinculadas à turma).
-typedef LessonsQuery = ({String classId, String? disciplineId});
+/// Filtro de listagem: turma + disciplina opcional + período opcional.
+typedef LessonsQuery = ({String classId, String? disciplineId, String? assessmentPeriodId});
 
 final lessonsListProvider = FutureProvider.family<List<Lesson>, LessonsQuery>((ref, query) {
-  return ref.watch(lessonsRepositoryProvider).getLessons(query.classId, disciplineId: query.disciplineId).then(
-    (lessons) {
-      lessons.sort((a, b) => b.date.compareTo(a.date));
-      return lessons;
-    },
-  );
+  return ref
+      .watch(lessonsRepositoryProvider)
+      .getLessons(
+        query.classId,
+        disciplineId: query.disciplineId,
+        assessmentPeriodId: query.assessmentPeriodId,
+      )
+      .then((lessons) {
+    lessons.sort((a, b) => b.date.compareTo(a.date));
+    return lessons;
+  });
 });
 
 final lessonDetailProvider = FutureProvider.family<Lesson, String>((ref, id) {
@@ -41,6 +46,7 @@ class LessonsActions {
   Future<Lesson> create(
     String classId, {
     required String disciplineId,
+    required String assessmentPeriodId,
     required DateTime date,
     required String startTime,
     required String endTime,
@@ -49,6 +55,7 @@ class LessonsActions {
     final lesson = await _repo.createLesson(
       classId,
       disciplineId: disciplineId,
+      assessmentPeriodId: assessmentPeriodId,
       date: date,
       startTime: startTime,
       endTime: endTime,
@@ -61,6 +68,7 @@ class LessonsActions {
   Future<({int totalCreated})> bulkCreate(
     String classId, {
     required String disciplineId,
+    required String assessmentPeriodId,
     required List<DateTime> dates,
     required String startTime,
     required String endTime,
@@ -69,6 +77,7 @@ class LessonsActions {
     final result = await _repo.bulkCreateLessons(
       classId,
       disciplineId: disciplineId,
+      assessmentPeriodId: assessmentPeriodId,
       dates: dates,
       startTime: startTime,
       endTime: endTime,
@@ -85,8 +94,16 @@ class LessonsActions {
     String? startTime,
     String? endTime,
     String? observations,
+    String? assessmentPeriodId,
   }) async {
-    await _repo.updateLesson(id, date: date, startTime: startTime, endTime: endTime, observations: observations);
+    await _repo.updateLesson(
+      id,
+      date: date,
+      startTime: startTime,
+      endTime: endTime,
+      observations: observations,
+      assessmentPeriodId: assessmentPeriodId,
+    );
     _ref.invalidate(lessonsListProvider);
     _ref.invalidate(lessonDetailProvider(id));
   }
@@ -98,3 +115,12 @@ class LessonsActions {
 }
 
 final lessonsActionsProvider = Provider<LessonsActions>((ref) => LessonsActions(ref));
+
+/// Query padrão da turma usando o período global selecionado.
+LessonsQuery lessonsQueryFor(WidgetRef ref, String classId, {String? disciplineId}) {
+  return (
+    classId: classId,
+    disciplineId: disciplineId,
+    assessmentPeriodId: ref.watch(effectiveAssessmentPeriodIdProvider),
+  );
+}

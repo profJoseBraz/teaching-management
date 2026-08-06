@@ -2,12 +2,14 @@ import { DefaultAuthorizationPolicy } from '../shared/application/authorization-
 import { createAuthMiddleware } from '../shared/http/auth.middleware';
 import { PrismaClassDisciplineGateway } from '../shared/infra/prisma/prisma-class-discipline-gateway';
 import { PrismaClassOwnershipChecker } from '../shared/infra/prisma/prisma-class-ownership-checker';
+import { PrismaAssessmentPeriodGateway } from '../shared/infra/prisma/prisma-assessment-period-gateway';
 import { PrismaEnrollmentGateway } from '../shared/infra/prisma/prisma-enrollment-gateway';
 import { PrismaLessonGateway } from '../shared/infra/prisma/prisma-lesson-gateway';
 
 // --- Identity -------------------------------------------------------------
 import { GetCurrentUserUseCase } from '../modules/identity/application/use-cases/get-current-user';
 import { LoginUseCase } from '../modules/identity/application/use-cases/login';
+import { RefreshTokensUseCase } from '../modules/identity/application/use-cases/refresh-tokens';
 import { RegisterTeacherUseCase } from '../modules/identity/application/use-cases/register-teacher';
 import { BcryptPasswordHasher } from '../modules/identity/infrastructure/bcrypt-password-hasher';
 import { JwtTokenService } from '../modules/identity/infrastructure/jwt-token-service';
@@ -52,6 +54,15 @@ import { CreateStudentsBatchUseCase } from '../modules/students/application/use-
 import { PreviewStudentPasteUseCase } from '../modules/students/application/use-cases/preview-student-paste';
 import { PrismaStudentRepository } from '../modules/students/infrastructure/prisma-student-repository';
 import { StudentController } from '../modules/students/presentation/student.controller';
+
+// --- Agenda ---------------------------------------------------------------
+import { CreateAgendaNoteUseCase } from '../modules/agenda/application/use-cases/create-agenda-note';
+import { DeleteAgendaNoteUseCase } from '../modules/agenda/application/use-cases/delete-agenda-note';
+import { GetAgendaNoteUseCase } from '../modules/agenda/application/use-cases/get-agenda-note';
+import { ListAgendaNotesUseCase } from '../modules/agenda/application/use-cases/list-agenda-notes';
+import { UpdateAgendaNoteUseCase } from '../modules/agenda/application/use-cases/update-agenda-note';
+import { PrismaAgendaNoteRepository } from '../modules/agenda/infrastructure/prisma-agenda-note-repository';
+import { AgendaController } from '../modules/agenda/presentation/agenda.controller';
 
 // --- Classes ------------------------------------------------------------
 import { ArchiveClassUseCase } from '../modules/classes/application/use-cases/archive-class';
@@ -109,6 +120,8 @@ import { GradeSubmissionUseCase } from '../modules/activities/application/use-ca
 import { GradeSubmissionsBulkUseCase } from '../modules/activities/application/use-cases/grade-submissions-bulk';
 import { ListActivitiesUseCase } from '../modules/activities/application/use-cases/list-activities';
 import { ListSubmissionsUseCase } from '../modules/activities/application/use-cases/list-submissions';
+import { MarkActivityEvaluatedUseCase } from '../modules/activities/application/use-cases/mark-activity-evaluated';
+import { ReopenActivityEvaluationUseCase } from '../modules/activities/application/use-cases/reopen-activity-evaluation';
 import { SoftDeleteActivityUseCase } from '../modules/activities/application/use-cases/soft-delete-activity';
 import { UpdateActivityUseCase } from '../modules/activities/application/use-cases/update-activity';
 import { UpdateSubmissionStatusUseCase } from '../modules/activities/application/use-cases/update-submission-status';
@@ -132,6 +145,7 @@ import { ReportsController } from '../modules/reports/presentation/reports.contr
 export function createContainer() {
   // --- Shared infrastructure (ports usados por múltiplos módulos) ---------
   const classOwnershipChecker = new PrismaClassOwnershipChecker();
+  const assessmentPeriodGateway = new PrismaAssessmentPeriodGateway();
   const lessonGateway = new PrismaLessonGateway();
   const enrollmentGateway = new PrismaEnrollmentGateway();
   const classDisciplineGateway = new PrismaClassDisciplineGateway();
@@ -149,11 +163,13 @@ export function createContainer() {
     tokenService,
   );
   const getCurrentUserUseCase = new GetCurrentUserUseCase(userRepository);
+  const refreshTokensUseCase = new RefreshTokensUseCase(userRepository, tokenService);
 
   const authController = new AuthController(
     loginUseCase,
     registerTeacherUseCase,
     getCurrentUserUseCase,
+    refreshTokensUseCase,
   );
 
   const authMiddleware = createAuthMiddleware(tokenService);
@@ -254,6 +270,23 @@ export function createContainer() {
     softDeleteStudentUseCase,
   );
 
+  // --- Agenda -------------------------------------------------------------
+  const agendaNoteRepository = new PrismaAgendaNoteRepository();
+
+  const createAgendaNoteUseCase = new CreateAgendaNoteUseCase(agendaNoteRepository);
+  const updateAgendaNoteUseCase = new UpdateAgendaNoteUseCase(agendaNoteRepository);
+  const listAgendaNotesUseCase = new ListAgendaNotesUseCase(agendaNoteRepository);
+  const getAgendaNoteUseCase = new GetAgendaNoteUseCase(agendaNoteRepository);
+  const deleteAgendaNoteUseCase = new DeleteAgendaNoteUseCase(agendaNoteRepository);
+
+  const agendaController = new AgendaController(
+    createAgendaNoteUseCase,
+    updateAgendaNoteUseCase,
+    listAgendaNotesUseCase,
+    getAgendaNoteUseCase,
+    deleteAgendaNoteUseCase,
+  );
+
   // --- Classes ------------------------------------------------------------
   const classRepository = new PrismaClassRepository();
   const classDisciplineRepository = new PrismaClassDisciplineRepository();
@@ -318,9 +351,10 @@ export function createContainer() {
     lessonRepository,
     classOwnershipChecker,
     classDisciplineGateway,
+    assessmentPeriodGateway,
   );
   const bulkCreateLessonsUseCase = new BulkCreateLessonsUseCase(createLessonUseCase);
-  const updateLessonUseCase = new UpdateLessonUseCase(lessonRepository);
+  const updateLessonUseCase = new UpdateLessonUseCase(lessonRepository, assessmentPeriodGateway);
   const listLessonsUseCase = new ListLessonsUseCase(lessonRepository, classOwnershipChecker);
   const getLessonUseCase = new GetLessonUseCase(lessonRepository);
   const softDeleteLessonUseCase = new SoftDeleteLessonUseCase(lessonRepository);
@@ -342,8 +376,9 @@ export function createContainer() {
     contentRepository,
     classOwnershipChecker,
     classDisciplineGateway,
+    assessmentPeriodGateway,
   );
-  const updateContentUseCase = new UpdateContentUseCase(contentRepository);
+  const updateContentUseCase = new UpdateContentUseCase(contentRepository, assessmentPeriodGateway);
   const listContentsUseCase = new ListContentsUseCase(contentRepository, classOwnershipChecker);
   const completeContentUseCase = new CompleteContentUseCase(contentRepository);
   const reopenContentUseCase = new ReopenContentUseCase(contentRepository);
@@ -407,10 +442,12 @@ export function createContainer() {
     lessonGateway,
     enrollmentGateway,
     classDisciplineGateway,
+    assessmentPeriodGateway,
   );
   const updateActivityUseCase = new UpdateActivityUseCase(
     activityRepository,
     classDisciplineGateway,
+    assessmentPeriodGateway,
   );
   const softDeleteActivityUseCase = new SoftDeleteActivityUseCase(activityRepository);
   const listActivitiesUseCase = new ListActivitiesUseCase(activityRepository, classOwnershipChecker);
@@ -434,6 +471,9 @@ export function createContainer() {
     activityRepository,
   );
 
+  const markActivityEvaluatedUseCase = new MarkActivityEvaluatedUseCase(activityRepository);
+  const reopenActivityEvaluationUseCase = new ReopenActivityEvaluationUseCase(activityRepository);
+
   const activityController = new ActivityController(
     createActivityUseCase,
     updateActivityUseCase,
@@ -442,6 +482,8 @@ export function createContainer() {
     getActivityUseCase,
     createActivityGroupsUseCase,
     listSubmissionsUseCase,
+    markActivityEvaluatedUseCase,
+    reopenActivityEvaluationUseCase,
   );
   const submissionController = new SubmissionController(
     updateSubmissionStatusUseCase,
@@ -476,6 +518,7 @@ export function createContainer() {
     userRepository,
     academicController,
     studentController,
+    agendaController,
     classController,
     lessonController,
     contentController,

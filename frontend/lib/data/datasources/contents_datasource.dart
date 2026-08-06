@@ -5,6 +5,7 @@ ContentItem contentItemFromJson(Map<String, dynamic> json) => ContentItem(
       id: json['id'] as String,
       classId: json['classId'] as String,
       disciplineId: json['disciplineId'] as String,
+      assessmentPeriodId: json['assessmentPeriodId'] as String?,
       title: json['title'] as String,
       description: json['description'] as String?,
       status: json['status'] as String? ?? 'IN_PROGRESS',
@@ -19,10 +20,19 @@ class ContentsDatasource {
 
   final ApiClient _apiClient;
 
-  Future<List<ContentItem>> getContents(String classId, {String? status, String? disciplineId}) async {
+  Future<List<ContentItem>> getContents(
+    String classId, {
+    String? status,
+    String? disciplineId,
+    String? assessmentPeriodId,
+  }) async {
     final response = await _apiClient.get(
       '/classes/$classId/contents',
-      query: {'status': status, 'disciplineId': disciplineId},
+      query: {
+        'status': status,
+        'disciplineId': disciplineId,
+        'assessmentPeriodId': assessmentPeriodId,
+      },
     );
     return (response['data'] as List).map((e) => contentItemFromJson(e as Map<String, dynamic>)).toList();
   }
@@ -30,21 +40,29 @@ class ContentsDatasource {
   Future<ContentItem> createContent(
     String classId, {
     required String disciplineId,
+    required String assessmentPeriodId,
     required String title,
     String? description,
   }) async {
     final response = await _apiClient.post('/classes/$classId/contents', data: {
       'disciplineId': disciplineId,
+      'assessmentPeriodId': assessmentPeriodId,
       'title': title,
       if (description != null) 'description': description,
     });
     return contentItemFromJson(response['data'] as Map<String, dynamic>);
   }
 
-  Future<ContentItem> updateContent(String id, {String? title, String? description}) async {
+  Future<ContentItem> updateContent(
+    String id, {
+    String? title,
+    String? description,
+    String? assessmentPeriodId,
+  }) async {
     final response = await _apiClient.patch('/contents/$id', data: {
       if (title != null) 'title': title,
       if (description != null) 'description': description,
+      if (assessmentPeriodId != null) 'assessmentPeriodId': assessmentPeriodId,
     });
     return contentItemFromJson(response['data'] as Map<String, dynamic>);
   }

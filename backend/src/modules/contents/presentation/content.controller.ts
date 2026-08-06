@@ -21,8 +21,16 @@ export class ContentController {
 
   list = async (req: Request, res: Response): Promise<void> => {
     const { classId } = req.params as { classId: string };
-    const { status, disciplineId } = req.query as { status?: ContentStatus; disciplineId?: string };
-    const contents = await this.listContentsUseCase.execute(classId, req.auth!.teacherId, status, disciplineId);
+    const { status, disciplineId, assessmentPeriodId } = req.query as {
+      status?: ContentStatus;
+      disciplineId?: string;
+      assessmentPeriodId?: string;
+    };
+    const contents = await this.listContentsUseCase.execute(classId, req.auth!.teacherId, {
+      status,
+      disciplineId,
+      assessmentPeriodId,
+    });
     res.status(200).json({ data: contents });
   };
 

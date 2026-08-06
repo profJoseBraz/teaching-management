@@ -7,9 +7,12 @@ import '../../../core/errors/app_exception.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/widgets/async_value_widget.dart';
 import '../../../core/widgets/markdown_description_field.dart';
+import '../../../core/widgets/status_chip.dart';
 import '../../../domain/entities/activity.dart';
+import '../../../domain/entities/assessment_period.dart';
 import '../../../domain/entities/lesson.dart';
 import '../../../domain/entities/school_class.dart';
+import '../../providers/academic_providers.dart';
 import '../../providers/activities_providers.dart';
 import '../../providers/lessons_providers.dart';
 
@@ -40,10 +43,10 @@ class ActivitiesTab extends ConsumerStatefulWidget {
 class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
   String? _tagFilter;
 
-  ActivitiesQuery get _query => (
-        classId: widget.classId,
+  ActivitiesQuery get _query => activitiesQueryFor(
+        ref,
+        widget.classId,
         disciplineId: widget.disciplineFilter,
-        tag: null,
       );
 
   List<String> _tagsFrom(List<Activity> activities) {
@@ -74,7 +77,7 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
           onRetry: () => ref.invalidate(activitiesListProvider(query)),
           isEmpty: (list) => list.isEmpty,
           emptyIcon: Icons.assignment_outlined,
-          emptyMessage: 'Nenhuma atividade cadastrada ainda.',
+          emptyMessage: 'Nenhuma atividade cadastrada neste período.',
           data: (activities) {
             final availableTags = _tagsFrom(activities);
             final filtered = _tagFilter == null
@@ -152,9 +155,39 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                                   'Entrega em ${_dateFormat.format(activity.dueDate)} · '
                                   'Vale ${activity.maxScore.toStringAsFixed(0)} pts',
                                 ),
-                                trailing: activity.isOverdue
-                                    ? const Icon(Icons.warning_amber_rounded, color: Color(0xFFB45309))
-                                    : const Icon(Icons.chevron_right_rounded),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    StatusChip.activityEvaluation(activity.evaluated),
+                                    if (activity.isOverdue)
+                                      const Padding(
+                                        padding: EdgeInsets.only(left: 4),
+                                        child: Icon(Icons.warning_amber_rounded, color: Color(0xFFB45309)),
+                                      ),
+                                    PopupMenuButton<String>(
+                                      onSelected: (value) {
+                                        if (value == 'toggle') {
+                                          _toggleEvaluated(activity);
+                                        } else if (value == 'open') {
+                                          context.go(
+                                            AppRoutes.activityDetail(widget.classId, activity.id),
+                                          );
+                                        }
+                                      },
+                                      itemBuilder: (context) => [
+                                        PopupMenuItem(
+                                          value: 'toggle',
+                                          child: Text(
+                                            activity.evaluated
+                                                ? 'Reabrir correção'
+                                                : 'Marcar como Avaliada',
+                                          ),
+                                        ),
+                                        const PopupMenuItem(value: 'open', child: Text('Abrir detalhe')),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                                 onTap: () => context.go(
                                   AppRoutes.activityDetail(widget.classId, activity.id),
                                 ),
@@ -171,6 +204,31 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
     );
   }
 
+  Future<void> _toggleEvaluated(Activity activity) async {
+    try {
+      final actions = ref.read(activitiesActionsProvider);
+      if (activity.evaluated) {
+        await actions.reopenEvaluation(activity.id, classId: widget.classId);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Atividade reaberta para correção.')),
+        );
+      } else {
+        await actions.markEvaluated(activity.id, classId: widget.classId);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Atividade marcada como Avaliada.')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      final detail = e is AppException ? e.displayMessage : e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao atualizar status: $detail')),
+      );
+    }
+  }
+
   Future<void> _openCreateDialog(List<Activity> existing) async {
     if (widget.disciplines.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -181,8 +239,26 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
       return;
     }
 
+    final periods = [
+      ...(ref.read(effectiveYearPeriodsProvider).valueOrNull ?? const <AssessmentPeriod>[]),
+    ]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    if (periods.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cadastre um período avaliativo em Config antes de lançar atividades.'),
+        ),
+      );
+      return;
+    }
+
+    final contextPeriodId = ref.read(effectiveAssessmentPeriodIdProvider);
+    final initialPeriodId =
+        (contextPeriodId != null && periods.any((p) => p.id == contextPeriodId))
+            ? contextPeriodId
+            : periods.first.id;
+
     final lessons =
-        ref.read(lessonsListProvider((classId: widget.classId, disciplineId: null))).valueOrNull ??
+        ref.read(lessonsListProvider(lessonsQueryFor(ref, widget.classId))).valueOrNull ??
             const <Lesson>[];
 
     final draft = await showDialog<_CreateActivityDraft>(
@@ -192,6 +268,8 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
         disciplines: widget.disciplines,
         lessons: lessons,
         tagSuggestions: _tagsFrom(existing),
+        periods: periods,
+        initialAssessmentPeriodId: initialPeriodId,
       ),
     );
     if (draft == null || !mounted) return;
@@ -201,6 +279,7 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
             widget.classId,
             originLessonId: draft.originLessonId,
             disciplineIds: draft.disciplineIds,
+            assessmentPeriodId: draft.assessmentPeriodId,
             title: draft.title,
             description: draft.description,
             tag: draft.tag,
@@ -221,6 +300,7 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
 typedef _CreateActivityDraft = ({
   String? originLessonId,
   List<String> disciplineIds,
+  String assessmentPeriodId,
   String title,
   String? description,
   String? tag,
@@ -237,11 +317,15 @@ class _CreateActivityDialog extends StatefulWidget {
     required this.disciplines,
     required this.lessons,
     required this.tagSuggestions,
+    required this.periods,
+    required this.initialAssessmentPeriodId,
   });
 
   final List<ClassDisciplineRef> disciplines;
   final List<Lesson> lessons;
   final List<String> tagSuggestions;
+  final List<AssessmentPeriod> periods;
+  final String initialAssessmentPeriodId;
 
   @override
   State<_CreateActivityDialog> createState() => _CreateActivityDialogState();
@@ -256,6 +340,7 @@ class _CreateActivityDialogState extends State<_CreateActivityDialog> {
 
   String? _originLessonId;
   late final Set<String> _selectedDisciplineIds;
+  late String _assessmentPeriodId;
   String _category = 'ASSIGNMENT';
   String _mode = 'INDIVIDUAL';
   String _gradeMode = 'INDIVIDUAL';
@@ -269,6 +354,7 @@ class _CreateActivityDialogState extends State<_CreateActivityDialog> {
     _descriptionController = TextEditingController();
     _tagController = TextEditingController();
     _maxScoreController = TextEditingController(text: '100');
+    _assessmentPeriodId = widget.initialAssessmentPeriodId;
     _selectedDisciplineIds = {
       if (widget.disciplines.length == 1) widget.disciplines.first.id,
     };
@@ -297,6 +383,7 @@ class _CreateActivityDialogState extends State<_CreateActivityDialog> {
     Navigator.of(context).pop<_CreateActivityDraft>((
       originLessonId: _originLessonId,
       disciplineIds: _selectedDisciplineIds.toList(),
+      assessmentPeriodId: _assessmentPeriodId,
       title: _titleController.text.trim(),
       description: description.isEmpty ? null : description,
       tag: tag.isEmpty ? null : tag,
@@ -322,6 +409,23 @@ class _CreateActivityDialogState extends State<_CreateActivityDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              DropdownButtonFormField<String>(
+                initialValue: _assessmentPeriodId,
+                decoration: const InputDecoration(labelText: 'Período'),
+                items: widget.periods
+                    .map(
+                      (p) => DropdownMenuItem<String>(
+                        value: p.id,
+                        child: Text(p.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) setState(() => _assessmentPeriodId = value);
+                },
+                validator: (v) => (v == null || v.isEmpty) ? 'Selecione o período' : null,
+              ),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _titleController,
                 decoration: const InputDecoration(labelText: 'Título'),

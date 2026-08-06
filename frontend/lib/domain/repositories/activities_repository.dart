@@ -4,13 +4,18 @@ import '../entities/activity_group.dart';
 import '../entities/submission.dart';
 
 abstract interface class ActivitiesRepository {
-  Future<List<Activity>> getActivities(String classId, {String? disciplineId, String? tag});
+  Future<List<Activity>> getActivities(
+    String classId, {
+    String? disciplineId,
+    String? tag,
+    String? assessmentPeriodId,
+  });
   Future<ActivityDetail> getActivity(String id);
   Future<Activity> createActivity(
     String classId, {
     String? originLessonId,
     List<String> disciplineIds = const [],
-    String? assessmentPeriodId,
+    required String assessmentPeriodId,
     required String title,
     String? description,
     String? tag,
@@ -29,8 +34,11 @@ abstract interface class ActivitiesRepository {
     required double maxScore,
     required DateTime dueDate,
     List<String>? disciplineIds,
+    String? assessmentPeriodId,
   });
   Future<void> deleteActivity(String id);
+  Future<Activity> markEvaluated(String id);
+  Future<Activity> reopenEvaluation(String id);
 
   Future<List<ActivityGroup>> createGroups(
     String activityId,

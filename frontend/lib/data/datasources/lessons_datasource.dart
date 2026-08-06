@@ -5,6 +5,7 @@ Lesson lessonFromJson(Map<String, dynamic> json) => Lesson(
       id: json['id'] as String,
       classId: json['classId'] as String,
       disciplineId: json['disciplineId'] as String,
+      assessmentPeriodId: json['assessmentPeriodId'] as String?,
       date: DateTime.parse(json['date'] as String),
       startTime: json['startTime'] as String,
       endTime: json['endTime'] as String,
@@ -21,10 +22,17 @@ class LessonsDatasource {
 
   final ApiClient _apiClient;
 
-  Future<List<Lesson>> getLessons(String classId, {String? disciplineId}) async {
+  Future<List<Lesson>> getLessons(
+    String classId, {
+    String? disciplineId,
+    String? assessmentPeriodId,
+  }) async {
     final response = await _apiClient.get(
       '/classes/$classId/lessons',
-      query: {'disciplineId': disciplineId},
+      query: {
+        'disciplineId': disciplineId,
+        'assessmentPeriodId': assessmentPeriodId,
+      },
     );
     return (response['data'] as List).map((e) => lessonFromJson(e as Map<String, dynamic>)).toList();
   }
@@ -37,6 +45,7 @@ class LessonsDatasource {
   Future<Lesson> createLesson(
     String classId, {
     required String disciplineId,
+    required String assessmentPeriodId,
     required DateTime date,
     required String startTime,
     required String endTime,
@@ -44,6 +53,7 @@ class LessonsDatasource {
   }) async {
     final response = await _apiClient.post('/classes/$classId/lessons', data: {
       'disciplineId': disciplineId,
+      'assessmentPeriodId': assessmentPeriodId,
       'date': _formatDate(date),
       'startTime': startTime,
       'endTime': endTime,
@@ -55,6 +65,7 @@ class LessonsDatasource {
   Future<({int totalCreated})> bulkCreateLessons(
     String classId, {
     required String disciplineId,
+    required String assessmentPeriodId,
     required List<DateTime> dates,
     required String startTime,
     required String endTime,
@@ -62,6 +73,7 @@ class LessonsDatasource {
   }) async {
     final response = await _apiClient.post('/classes/$classId/lessons/bulk', data: {
       'disciplineId': disciplineId,
+      'assessmentPeriodId': assessmentPeriodId,
       'dates': dates.map(_formatDate).toList(),
       'startTime': startTime,
       'endTime': endTime,
@@ -77,12 +89,14 @@ class LessonsDatasource {
     String? startTime,
     String? endTime,
     String? observations,
+    String? assessmentPeriodId,
   }) async {
     final response = await _apiClient.patch('/lessons/$id', data: {
       if (date != null) 'date': _formatDate(date),
       if (startTime != null) 'startTime': startTime,
       if (endTime != null) 'endTime': endTime,
       if (observations != null) 'observations': observations,
+      if (assessmentPeriodId != null) 'assessmentPeriodId': assessmentPeriodId,
     });
     return lessonFromJson(response['data'] as Map<String, dynamic>);
   }

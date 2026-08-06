@@ -28,6 +28,9 @@ export type Activity = {
   maxScore: number;
   createdOn: Date;
   dueDate: Date;
+  /** Professor confirma que a avaliação da atividade foi encerrada. */
+  evaluated: boolean;
+  evaluatedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;

@@ -75,6 +75,20 @@ export class PrismaSubmissionRepository implements SubmissionRepository {
     return mapSubmission(row);
   }
 
+  async resetToPending(id: string, teacherId: string): Promise<Submission> {
+    const row = await prisma.submission.update({
+      where: { id, teacherId, deletedAt: null },
+      data: {
+        status: 'PENDING' as PrismaSubmissionStatus,
+        submittedAt: null,
+        score: null,
+        gradedAt: null,
+        observations: null,
+      },
+    });
+    return mapSubmission(row);
+  }
+
   async grade(
     id: string,
     teacherId: string,

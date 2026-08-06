@@ -92,7 +92,7 @@ lib/
                                # dashboard, relatórios, tema
     screens/                  # uma pasta por módulo (auth, dashboard,
                                # classes, lessons, attendance, contents,
-                               # activities, students, reports, settings)
+                               # activities, students, agenda, reports, settings)
 ```
 
 ## Telas implementadas
@@ -107,6 +107,7 @@ lib/
 | Frequência (chamada) | `/classes/:id/lessons/:lessonId/attendance` | Carrega ficha, alterna PRESENTE/FALTA/ATRASO por aluno, salva em lote, conclui a chamada |
 | Atividades — detalhe | `/classes/:id/activities/:activityId` | Resumo de entregas, lançamento de nota individual/em grupo |
 | Alunos | `/students` | CRUD com busca |
+| Agenda | `/agenda` | Anotações distintas agrupadas por data; filtros Pendentes/Concluídas/Todas |
 | Relatórios | `/reports` | Escolha de tipo de relatório + filtros (ano, turma, período, limiar) → tabela de resultados |
 | Configurações | `/settings` | CRUD de anos letivos, cursos, disciplinas e períodos avaliativos; preferência de tema; logout |
 
@@ -119,8 +120,10 @@ widget compartilhado `AsyncValueWidget`.
 - Tokens (`accessToken`/`refreshToken`) são persistidos em
   `flutter_secure_storage` (`TokenStorage`).
 - `AuthInterceptor` injeta `Authorization: Bearer <accessToken>` em toda
-  requisição autenticada e, ao receber `401`, limpa os tokens e notifica a
-  aplicação (`SessionEvents`) para forçar logout.
+  requisição autenticada. Em `401`, tenta `POST /auth/refresh` (uma vez,
+  compartilhado entre requests concorrentes), salva o novo par e **reexecuta**
+  a requisição original — a tela permanece na mesma rota. Só se o refresh
+  falhar é que limpa os tokens e notifica `SessionEvents` (logout → login).
 - `go_router` observa `authNotifierProvider` (`refreshListenable`) e
   redireciona automaticamente: sem sessão → `/login`; sessão válida em
   `/login` ou `/splash` → `/dashboard`.

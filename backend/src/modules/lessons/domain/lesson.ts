@@ -3,6 +3,7 @@ export type Lesson = {
   teacherId: string;
   classId: string;
   disciplineId: string;
+  assessmentPeriodId: string | null;
   date: Date;
   startTime: string;
   endTime: string;

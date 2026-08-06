@@ -155,12 +155,13 @@ export class PrismaReportsRepository implements ReportsRepository {
       .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
   }
 
-  /** P0 — atividades vencidas (dueDate < hoje) com ao menos uma entrega não GRADED. */
+  /** P0 — atividades vencidas (dueDate < hoje), não Avaliadas, com entrega não GRADED. */
   async getUngradedActivities(teacherId: string, filters: ReportFilters): Promise<ReportRow[]> {
     const range = dateRange(filters) ?? {};
     const activities = await prisma.activity.findMany({
       where: {
         ...activityScope(teacherId, filters),
+        evaluated: false,
         dueDate: { ...range, lt: startOfToday() },
         submissions: { some: { status: { not: 'GRADED' } } },
       },

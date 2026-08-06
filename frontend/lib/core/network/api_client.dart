@@ -30,7 +30,11 @@ class ApiClient {
           ),
         ) {
     dio.interceptors.add(
-      AuthInterceptor(tokenStorage: tokenStorage, onUnauthorized: onUnauthorized),
+      AuthInterceptor(
+        dio: dio,
+        tokenStorage: tokenStorage,
+        onUnauthorized: onUnauthorized,
+      ),
     );
     if (kDebugMode) {
       dio.interceptors.add(
@@ -51,8 +55,16 @@ class ApiClient {
     String path, {
     Object? data,
     Map<String, dynamic>? query,
+    bool skipAuth = false,
   }) =>
-      _unwrap(() => dio.post<Map<String, dynamic>>(path, data: data, queryParameters: _clean(query)));
+      _unwrap(
+        () => dio.post<Map<String, dynamic>>(
+          path,
+          data: data,
+          queryParameters: _clean(query),
+          options: skipAuth ? Options(extra: {'skipAuth': true}) : null,
+        ),
+      );
 
   Future<Map<String, dynamic>> patch(
     String path, {

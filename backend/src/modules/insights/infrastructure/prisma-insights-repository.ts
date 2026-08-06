@@ -27,13 +27,14 @@ export class PrismaInsightsRepository implements InsightsRepository {
     });
   }
 
-  /** Regra (docs/ARCHITECTURE.md §7.26): dueDate < hoje e existe submission não GRADED. */
+  /** Regra (docs/ARCHITECTURE.md §7.26): dueDate < hoje, não marcada Avaliada, com submission não GRADED. */
   async countOverdueUngradedActivities(filters: InsightsScopeFilters): Promise<number> {
     const classRelation = classRelationFilter(filters);
     return prisma.activity.count({
       where: {
         teacherId: filters.teacherId,
         deletedAt: null,
+        evaluated: false,
         dueDate: { lt: startOfToday() },
         ...(filters.classId ? { classId: filters.classId } : {}),
         ...(classRelation ? { class: classRelation } : {}),

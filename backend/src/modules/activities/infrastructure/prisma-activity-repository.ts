@@ -47,6 +47,8 @@ function mapActivity(row: ActivityWithLinks): Activity {
     maxScore: Number(row.maxScore),
     createdOn: row.createdOn,
     dueDate: row.dueDate,
+    evaluated: row.evaluated,
+    evaluatedAt: row.evaluatedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     deletedAt: row.deletedAt,
@@ -146,6 +148,8 @@ export class PrismaActivityRepository implements ActivityRepository {
         ...(input.assessmentPeriodId !== undefined
           ? { assessmentPeriodId: input.assessmentPeriodId }
           : {}),
+        ...(input.evaluated !== undefined ? { evaluated: input.evaluated } : {}),
+        ...(input.evaluatedAt !== undefined ? { evaluatedAt: input.evaluatedAt } : {}),
       },
       include: activeDisciplineInclude,
     });
@@ -179,6 +183,9 @@ export class PrismaActivityRepository implements ActivityRepository {
           : {}),
         ...(filters.tag
           ? { tag: { equals: filters.tag, mode: 'insensitive' as const } }
+          : {}),
+        ...(filters.assessmentPeriodId
+          ? { assessmentPeriodId: filters.assessmentPeriodId }
           : {}),
       },
       include: activeDisciplineInclude,

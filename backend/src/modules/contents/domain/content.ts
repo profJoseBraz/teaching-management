@@ -5,6 +5,7 @@ export type Content = {
   teacherId: string;
   classId: string;
   disciplineId: string;
+  assessmentPeriodId: string | null;
   title: string;
   description: string | null;
   status: ContentStatus;

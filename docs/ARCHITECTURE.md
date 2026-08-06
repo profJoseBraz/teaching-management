@@ -38,7 +38,7 @@ Centralizar a rotina letiva e **empurrar pendências** para o professor. O Dashb
 | Backend | Node.js + Express + TypeScript | Alinhado ao padrão do projeto; tipagem forte; ecossistema maduro |
 | ORM | Prisma | Migrations, tipagem e produtividade sem vazar para Use Cases |
 | Validação | Zod (borda) + regras no Domain/UseCase | Contrato de entrada separado da regra de negócio |
-| Auth | JWT + bcrypt | Simples, adequado a app Flutter; preparado para refresh tokens |
+| Auth | JWT + bcrypt + refresh | Access curto + refresh; renovação silenciosa no cliente |
 | Frontend state | Riverpod | Providers tipados, testáveis, sem acoplar UI à API |
 | HTTP client | Dio | Interceptors (auth, erro), alinhado às rules do projeto |
 | UI | Material Design 3 | Consistência, light/dark, componentes familiares |
@@ -122,6 +122,7 @@ No MVP, turmas do mesmo ano geralmente compartilham a mesma estrutura (bimestres
 | **Academic Structure** | Ano letivo, curso, disciplina, vínculo curso↔disciplina, período avaliativo |
 | **Class & Enrollment** | Turmas, matrículas (N:N aluno↔turma) |
 | **Students** | Cadastro de alunos do professor |
+| **Agenda** | Anotações pessoais do professor (várias por data) |
 | **Lessons** | Aulas (encontros) |
 | **Contents** | Conteúdos transversais a aulas + status |
 | **Attendance** | Frequência por aula |
@@ -248,15 +249,17 @@ já lançadas para uma disciplina removida.
 Unique `(classId, studentId)`.
 
 #### Lesson
-- `id`, `teacherId`, `classId`, `disciplineId`, `date`, `startTime`, `endTime`, `observations?`
+- `id`, `teacherId`, `classId`, `disciplineId`, `assessmentPeriodId`, `date`, `startTime`, `endTime`, `observations?`
 - `attendanceCompleted`: bool (denormalização controlada para Insights — ver §12)
 - `disciplineId` deve corresponder a um vínculo `ClassDiscipline` ativo da turma.
+- `assessmentPeriodId` deve pertencer ao ano letivo da turma (filtro padrão no AppBar).
 
 #### Content
-- `id`, `teacherId`, `classId`, `disciplineId`, `title`, `description?`
+- `id`, `teacherId`, `classId`, `disciplineId`, `assessmentPeriodId`, `title`, `description?`
 - `status`: IN_PROGRESS | COMPLETED
 - `startedAt`, `completedAt?`
 - `disciplineId` deve corresponder a um vínculo `ClassDiscipline` ativo da turma.
+- `assessmentPeriodId` deve pertencer ao ano letivo da turma.
 
 #### LessonContent
 - `lessonId`, `contentId` (N:N) — conteúdo atravessa várias aulas.
@@ -268,13 +271,15 @@ Unique `(classId, studentId)`.
 Unique `(lessonId, studentId)`.
 
 #### Activity
-- `id`, `teacherId`, `classId`, `originLessonId?`, `assessmentPeriodId?`
+- `id`, `teacherId`, `classId`, `originLessonId?`, `assessmentPeriodId`
 - `disciplineIds` (via `ActivityDiscipline` N:N; mín. 1)
 - `title` (até 200), `description?` (VARCHAR 5000, Markdown), `tag?` (VARCHAR 80, agrupamento)
 - `category`: EXERCISE | ASSIGNMENT | PROJECT | RESEARCH | SEMINAR | EXAM | OTHER
 - `mode`: INDIVIDUAL | GROUP
 - `maxScore` (default 100)
 - `createdOn`, `dueDate`
+- `evaluated` (bool, default false), `evaluatedAt?` — professor confirma encerramento da avaliação
+- `assessmentPeriodId` é obrigatório na criação (mesmo critério de aulas/conteúdos).
 - `originLessonId` é opcional. Sem aula de origem, ao menos uma disciplina é obrigatória.
   Com aula de origem, a disciplina da aula entra automaticamente; outras disciplinas da turma
   podem ser adicionadas (ex.: mesma atividade para LP I e LP II). Todas devem estar vinculadas
@@ -316,8 +321,8 @@ Unique `(activityId, studentId)`.
 9. Aluno ↔ Turma é N:N via `Enrollment`.
 
 ### Aulas e conteúdos
-10. Aula pertence a uma turma **e** a uma disciplina (`disciplineId` obrigatório); intervalo horário válido; a disciplina deve estar vinculada (`ClassDiscipline` ativo) à turma.
-11. Conteúdo nasce na turma para uma disciplina específica (`disciplineId` obrigatório, mesma validação de vínculo); pode ligar-se a N aulas.
+10. Aula pertence a uma turma, uma disciplina e um período avaliativo (`assessmentPeriodId` obrigatório na criação); intervalo horário válido; a disciplina deve estar vinculada (`ClassDiscipline` ativo) à turma; o período deve ser do ano letivo da turma.
+11. Conteúdo nasce na turma para uma disciplina e um período específicos (`disciplineId` + `assessmentPeriodId` obrigatórios); pode ligar-se a N aulas.
 12. Conteúdo permanece `IN_PROGRESS` até o professor marcar `COMPLETED`.
 13. Remover vínculo aula↔conteúdo não apaga o conteúdo automaticamente.
 
@@ -337,12 +342,16 @@ Unique `(activityId, studentId)`.
 20. Nota não pode exceder `maxScore` nem ser negativa.
 21. Em GROUP + SHARED, aplicar a mesma nota a todos os membros do grupo.
 22. Em GROUP + INDIVIDUAL, cada submission tem nota própria.
-23. Transições de entrega: PENDING ↔ SUBMITTED → GRADED (permitir atalho PENDING → GRADED se o professor lançar nota direto; SUBMITTED → PENDING corrige marcação acidental; GRADED não volta por este fluxo).
+23. Transições de entrega: PENDING ↔ SUBMITTED → GRADED (atalho PENDING → GRADED ao lançar nota;
+    SUBMITTED → PENDING corrige marcação de “entregue”; GRADED → PENDING desfaz avaliação
+    por engano e limpa nota/observações/`gradedAt`/`submittedAt`).
+23b. O professor pode marcar a atividade como Avaliada (`evaluated=true`) ao encerrar a correção,
+    mesmo com submissions ainda PENDING (ex.: zero / não entregue). Pode reabrir a correção depois.
 
 ### Insights (cruzamentos)
 24. “Não entregou e estava ausente na aula de origem” = submission PENDING/não SUBMITTED + attendance ABSENT na `originLesson`.
 25. “Não entregou apesar de presente” = pendente + PRESENT/LATE na origem.
-26. “Atividade vencida sem correção” = `dueDate < today` e existe submission não GRADED (ou nenhuma GRADED).
+26. “Atividade vencida sem correção” = `evaluated = false` e `dueDate < today` e existe submission não GRADED.
 27. “Aula sem frequência” = `attendanceCompleted = false` e data ≤ hoje.
 28. “Conteúdo em andamento” = status IN_PROGRESS.
 
@@ -353,6 +362,7 @@ Unique `(activityId, studentId)`.
 ### Identity
 - `RegisterTeacher` (opcional no MVP se houver seed do primeiro usuário)
 - `Login`
+- `RefreshTokens` (renova access/refresh sem novo login)
 - `GetCurrentUser`
 - `ChangePassword`
 
@@ -370,6 +380,10 @@ Unique `(activityId, studentId)`.
 - `LinkDisciplineToClass` / `UnlinkDisciplineFromClass` / `ListClassDisciplines`
 - `EnrollStudent` / `UnenrollStudent` / `ListClassStudents`
 - `BulkEnrollStudents` (preparar contrato; importação CSV no futuro)
+
+### Agenda
+- `CreateAgendaNote` / `UpdateAgendaNote` / `ListAgendaNotes` / `GetAgendaNote` / `DeleteAgendaNote`
+- Várias anotações por data; listagem agrupada por dia no app
 
 ### Lessons & contents
 - `CreateLesson` (requer `disciplineId` vinculado à turma) / `BulkCreateLessons` (N datas, máx. 200) / `UpdateLesson` / `ListLessons` (filtro por `disciplineId`) / `GetLesson` / `DeleteLesson` (soft)
@@ -547,7 +561,7 @@ Temas: **Light e Dark**.
 Base: `/api/v1`
 
 ### Auth
-- `POST /auth/login`
+- `POST /auth/login` · `POST /auth/refresh` · `GET /auth/me`
 - `POST /auth/register` (se habilitado)
 - `GET /auth/me`
 - `PATCH /auth/password`
@@ -590,7 +604,7 @@ Base: `/api/v1`
 - Paginação: `page`, `pageSize`, `total`
 - Códigos: 200/201/204/400/401/403/404/409/422/429/500
 - Rate limit: desligado em `development`; em produção `RATE_LIMIT_MAX` (default 2000/15min);
-  login/register com limite próprio (30/15min).
+  login/register/refresh com limite próprio (30/15min).
 - Nunca expor stacktrace.
 
 Documentação: **Swagger/OpenAPI** gerado/mantido por módulo.
@@ -600,7 +614,8 @@ Documentação: **Swagger/OpenAPI** gerado/mantido por módulo.
 ## 13. Autenticação e controle de acesso
 
 ### MVP
-- Login e-mail/senha → JWT access token (e refresh token em cookie/secure storage — recomendado).
+- Login e-mail/senha → JWT access + refresh (secure storage no Flutter).
+- `POST /auth/refresh` renova o par; o cliente faz retry silencioso em `401`.
 - Payload: `{ sub: userId, role: 'PROFESSOR' }`.
 - `teacherId` de negócio = `sub` no MVP (1 user = 1 professor).
 
@@ -853,7 +868,8 @@ Frontend: `API_BASE_URL` (flavors dev/prod).
 9. ~~Insights Engine + Dashboard~~ ✅
 10. ~~Reports P0 (+ P1)~~ ✅
 11. ~~Frontend Flutter (shell + Dashboard + fluxos P0)~~ ✅
-12. Evoluções futuras: exportação CSV/PDF, notificações, importação em massa, integrações externas
+12. ~~Agenda (diário por dia + item no shell)~~ ✅
+13. Evoluções futuras: exportação CSV/PDF, notificações, importação em massa, integrações externas
 
 Cada fatia vertical deve entregar valor usável (não “só CRUD isolado” sem aparecer no Dashboard quando fizer sentido).
 

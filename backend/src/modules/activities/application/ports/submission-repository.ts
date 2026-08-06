@@ -11,6 +11,8 @@ export interface SubmissionRepository {
     status: SubmissionStatus,
     submittedAt?: Date | null,
   ): Promise<Submission>;
+  /** Volta a entrega para PENDING e limpa nota/observações/datas de entrega e correção. */
+  resetToPending(id: string, teacherId: string): Promise<Submission>;
   grade(
     id: string,
     teacherId: string,

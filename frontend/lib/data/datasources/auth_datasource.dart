@@ -10,8 +10,7 @@ User userFromJson(Map<String, dynamic> json) => User(
       isActive: json['isActive'] as bool? ?? true,
     );
 
-/// Fala diretamente com `POST /auth/login`, `POST /auth/register` e
-/// `GET /auth/me`, persistindo os tokens recebidos.
+/// Fala com `/auth/login`, `/auth/register`, `/auth/refresh` e `/auth/me`.
 class AuthDatasource {
   AuthDatasource({required ApiClient apiClient, required TokenStorage tokenStorage})
       : _apiClient = apiClient,
@@ -24,6 +23,7 @@ class AuthDatasource {
     final response = await _apiClient.post(
       '/auth/login',
       data: {'email': email, 'password': password},
+      skipAuth: true,
     );
     final data = response['data'] as Map<String, dynamic>;
     await _persistTokens(data['tokens'] as Map<String, dynamic>);
@@ -34,10 +34,26 @@ class AuthDatasource {
     final response = await _apiClient.post(
       '/auth/register',
       data: {'name': name, 'email': email, 'password': password},
+      skipAuth: true,
     );
     final data = response['data'] as Map<String, dynamic>;
     await _persistTokens(data['tokens'] as Map<String, dynamic>);
     return userFromJson(data['user'] as Map<String, dynamic>);
+  }
+
+  Future<void> refresh() async {
+    final refreshToken = await _tokenStorage.readRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) {
+      throw StateError('Refresh token missing');
+    }
+
+    final response = await _apiClient.post(
+      '/auth/refresh',
+      data: {'refreshToken': refreshToken},
+      skipAuth: true,
+    );
+    final data = response['data'] as Map<String, dynamic>;
+    await _persistTokens(data['tokens'] as Map<String, dynamic>);
   }
 
   Future<User> me() async {

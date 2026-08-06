@@ -83,6 +83,72 @@ final assessmentPeriodsProvider = FutureProvider.family<List<AssessmentPeriod>, 
   return ref.watch(academicRepositoryProvider).getAssessmentPeriods(academicYearId);
 });
 
+const _selectedPeriodPrefsKey = 'gd_selected_assessment_period_id';
+
+/// Período avaliativo selecionado manualmente (`null` = usar o primeiro do ano).
+class SelectedPeriodNotifier extends StateNotifier<String?> {
+  SelectedPeriodNotifier(this._ref)
+      : super(_ref.read(sharedPreferencesProvider).getString(_selectedPeriodPrefsKey));
+
+  final Ref _ref;
+
+  void select(String? id) {
+    state = id;
+    final prefs = _ref.read(sharedPreferencesProvider);
+    if (id == null) {
+      prefs.remove(_selectedPeriodPrefsKey);
+    } else {
+      prefs.setString(_selectedPeriodPrefsKey, id);
+    }
+  }
+}
+
+final selectedAssessmentPeriodIdProvider =
+    StateNotifierProvider<SelectedPeriodNotifier, String?>((ref) => SelectedPeriodNotifier(ref));
+
+/// Períodos do ano letivo efetivo (ordenados).
+final effectiveYearPeriodsProvider = Provider<AsyncValue<List<AssessmentPeriod>>>((ref) {
+  final yearId = ref.watch(effectiveAcademicYearIdProvider);
+  if (yearId == null) return const AsyncData([]);
+  return ref.watch(assessmentPeriodsProvider(yearId));
+});
+
+/// Período efetivo: seleção manual (se ainda existir no ano) ou o de menor `sortOrder`.
+final effectiveAssessmentPeriodProvider = Provider<AssessmentPeriod?>((ref) {
+  final periodsAsync = ref.watch(effectiveYearPeriodsProvider);
+  final periods = periodsAsync.valueOrNull;
+  if (periods == null || periods.isEmpty) return null;
+
+  final sorted = [...periods]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+  final manualId = ref.watch(selectedAssessmentPeriodIdProvider);
+  if (manualId != null) {
+    for (final period in sorted) {
+      if (period.id == manualId) return period;
+    }
+  }
+  return sorted.first;
+});
+
+final effectiveAssessmentPeriodIdProvider = Provider<String?>((ref) {
+  return ref.watch(effectiveAssessmentPeriodProvider)?.id;
+});
+
+/// Ao trocar o ano letivo, limpa a seleção de período se ela não pertencer ao novo ano.
+final academicYearPeriodSyncProvider = Provider<void>((ref) {
+  ref.listen(effectiveAcademicYearIdProvider, (previous, next) {
+    if (previous == next) return;
+    final selected = ref.read(selectedAssessmentPeriodIdProvider);
+    if (selected == null || next == null) return;
+    // Invalida/espera a lista do novo ano e limpa se o id antigo não existir.
+    ref.read(assessmentPeriodsProvider(next).future).then((periods) {
+      final stillValid = periods.any((p) => p.id == selected);
+      if (!stillValid) {
+        ref.read(selectedAssessmentPeriodIdProvider.notifier).select(null);
+      }
+    });
+  });
+});
+
 /// Ações de escrita da estrutura acadêmica (anos, cursos, disciplinas,
 /// vínculos e períodos avaliativos). Usada pela tela de Configurações.
 class AcademicActions {
@@ -112,7 +178,7 @@ class AcademicActions {
     _ref.invalidate(coursesProvider);
   }
 
-  Future<void> updateCourse(String id, {String? name, String? description}) async {
+  Future<void> updateCourse(String id, {required String name, String? description}) async {
     await _repo.updateCourse(id, name: name, description: description);
     _ref.invalidate(coursesProvider);
   }

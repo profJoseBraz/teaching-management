@@ -457,7 +457,7 @@ class _AttendanceOverviewTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final query = (classId: classId, disciplineId: disciplineFilter);
+    final query = lessonsQueryFor(ref, classId, disciplineId: disciplineFilter);
     final lessonsAsync = ref.watch(lessonsListProvider(query));
 
     return RefreshIndicator(
@@ -467,7 +467,7 @@ class _AttendanceOverviewTab extends ConsumerWidget {
         onRetry: () => ref.invalidate(lessonsListProvider(query)),
         isEmpty: (list) => list.isEmpty,
         emptyIcon: Icons.fact_check_outlined,
-        emptyMessage: 'Cadastre aulas na aba "Aulas" para começar a fazer chamada.',
+        emptyMessage: 'Cadastre aulas neste período (aba "Aulas") para começar a fazer chamada.',
         data: (lessons) {
           final pending = lessons.where((l) => !l.attendanceCompleted).length;
           return ListView(

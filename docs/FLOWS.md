@@ -17,6 +17,61 @@ sequenceDiagram
   API-->>App: 200 { data }
 ```
 
+## Refresh token (renovação silenciosa)
+
+```mermaid
+sequenceDiagram
+  participant App as Flutter
+  participant Int as AuthInterceptor
+  participant API as Express
+  participant UC as RefreshTokensUseCase
+
+  App->>API: GET /recurso (access expirado)
+  API-->>Int: 401
+  Int->>API: POST /auth/refresh { refreshToken }
+  API->>UC: verify + issueTokens
+  UC-->>API: tokens
+  API-->>Int: 200 { tokens }
+  Int->>API: retry GET /recurso (novo access)
+  API-->>App: 200
+  Note over Int: Se refresh falhar → limpa tokens e vai ao login
+```
+
+## Agenda (anotações por data)
+
+```mermaid
+sequenceDiagram
+  participant App as Flutter
+  participant API as Express
+  participant UC as CreateAgendaNoteUseCase
+  participant DB as PostgreSQL
+
+  App->>API: POST /agenda-notes { date, content }
+  API->>UC: execute(teacherId, date, content)
+  UC->>DB: create
+  UC-->>API: AgendaNote
+  API-->>App: 201 { data }
+```
+
+No app: menu **Agenda** → filtros **Pendentes / Concluídas / Todas**, texto e data →
+cada **linha é uma anotação distinta** (várias no mesmo dia). **Nova anotação** cria
+sempre um registro novo (data padrão hoje, alterável). Checkbox conclui; exclusão remove só aquela linha.
+
+## Período avaliativo (contexto global)
+
+No AppBar: seletor de **ano letivo** + seletor de **período** (ex.: 1º Trimestre).
+Aulas, frequência (via aulas), conteúdos e atividades listam e criam no período efetivo.
+
+```mermaid
+flowchart LR
+  Config[Config: períodos do ano] --> AppBar[Seletor período]
+  AppBar --> Lists[GET ?assessmentPeriodId=]
+  AppBar --> Create[POST assessmentPeriodId]
+  Lists --> Lessons[Aulas / Frequência]
+  Lists --> Contents[Conteúdos]
+  Lists --> Activities[Atividades]
+```
+
 ## Ownership (todas as features futuras)
 
 ```mermaid

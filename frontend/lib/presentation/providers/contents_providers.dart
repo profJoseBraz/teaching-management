@@ -4,6 +4,7 @@ import '../../data/datasources/contents_datasource.dart';
 import '../../data/repositories/contents_repository_impl.dart';
 import '../../domain/entities/content_item.dart';
 import '../../domain/repositories/contents_repository.dart';
+import 'academic_providers.dart';
 import 'session_providers.dart';
 
 final contentsDatasourceProvider = Provider<ContentsDatasource>(
@@ -14,12 +15,15 @@ final contentsRepositoryProvider = Provider<ContentsRepository>(
   (ref) => ContentsRepositoryImpl(ref.watch(contentsDatasourceProvider)),
 );
 
-/// Filtro de listagem: turma obrigatória + disciplina opcional (`null` =
-/// todas as disciplinas vinculadas à turma).
-typedef ContentsQuery = ({String classId, String? disciplineId});
+/// Filtro de listagem: turma + disciplina opcional + período opcional.
+typedef ContentsQuery = ({String classId, String? disciplineId, String? assessmentPeriodId});
 
 final contentsListProvider = FutureProvider.family<List<ContentItem>, ContentsQuery>((ref, query) {
-  return ref.watch(contentsRepositoryProvider).getContents(query.classId, disciplineId: query.disciplineId);
+  return ref.watch(contentsRepositoryProvider).getContents(
+        query.classId,
+        disciplineId: query.disciplineId,
+        assessmentPeriodId: query.assessmentPeriodId,
+      );
 });
 
 class ContentsActions {
@@ -29,13 +33,36 @@ class ContentsActions {
 
   ContentsRepository get _repo => _ref.read(contentsRepositoryProvider);
 
-  Future<void> create(String classId, {required String disciplineId, required String title, String? description}) async {
-    await _repo.createContent(classId, disciplineId: disciplineId, title: title, description: description);
+  Future<void> create(
+    String classId, {
+    required String disciplineId,
+    required String assessmentPeriodId,
+    required String title,
+    String? description,
+  }) async {
+    await _repo.createContent(
+      classId,
+      disciplineId: disciplineId,
+      assessmentPeriodId: assessmentPeriodId,
+      title: title,
+      description: description,
+    );
     _ref.invalidate(contentsListProvider);
   }
 
-  Future<void> update(String id, {required String classId, String? title, String? description}) async {
-    await _repo.updateContent(id, title: title, description: description);
+  Future<void> update(
+    String id, {
+    required String classId,
+    String? title,
+    String? description,
+    String? assessmentPeriodId,
+  }) async {
+    await _repo.updateContent(
+      id,
+      title: title,
+      description: description,
+      assessmentPeriodId: assessmentPeriodId,
+    );
     _ref.invalidate(contentsListProvider);
   }
 
@@ -61,3 +88,11 @@ class ContentsActions {
 }
 
 final contentsActionsProvider = Provider<ContentsActions>((ref) => ContentsActions(ref));
+
+ContentsQuery contentsQueryFor(WidgetRef ref, String classId, {String? disciplineId}) {
+  return (
+    classId: classId,
+    disciplineId: disciplineId,
+    assessmentPeriodId: ref.watch(effectiveAssessmentPeriodIdProvider),
+  );
+}

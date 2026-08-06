@@ -38,7 +38,7 @@ class AcademicRepositoryImpl implements AcademicRepository {
       _datasource.createCourse(name: name, description: description);
 
   @override
-  Future<Course> updateCourse(String id, {String? name, String? description}) =>
+  Future<Course> updateCourse(String id, {required String name, String? description}) =>
       _datasource.updateCourse(id, name: name, description: description);
 
   @override

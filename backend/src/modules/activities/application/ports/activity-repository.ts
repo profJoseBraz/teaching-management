@@ -5,7 +5,7 @@ export type CreateActivityInput = {
   classId: string;
   disciplineIds: string[];
   originLessonId?: string | null;
-  assessmentPeriodId?: string | null;
+  assessmentPeriodId: string;
   title: string;
   description?: string | null;
   tag?: string | null;
@@ -27,11 +27,14 @@ export type UpdateActivityInput = Partial<{
   dueDate: Date;
   assessmentPeriodId: string | null;
   disciplineIds: string[];
+  evaluated: boolean;
+  evaluatedAt: Date | null;
 }>;
 
 export type ListActivitiesFilters = {
   disciplineId?: string;
   tag?: string;
+  assessmentPeriodId?: string;
 };
 
 export interface ActivityRepository {

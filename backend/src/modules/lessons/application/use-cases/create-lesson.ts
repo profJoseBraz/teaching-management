@@ -1,3 +1,4 @@
+import type { AssessmentPeriodGateway } from '../../../../shared/application/ports/assessment-period-gateway';
 import type { ClassDisciplineGateway } from '../../../../shared/application/ports/class-discipline-gateway';
 import type { ClassOwnershipChecker } from '../../../../shared/application/ports/class-ownership-checker';
 import { ValidationError } from '../../../../shared/domain/errors';
@@ -9,6 +10,7 @@ export type CreateLessonInput = {
   teacherId: string;
   classId: string;
   disciplineId: string;
+  assessmentPeriodId: string;
   date: Date;
   startTime: string;
   endTime: string;
@@ -20,6 +22,7 @@ export class CreateLessonUseCase {
     private readonly lessons: LessonRepository,
     private readonly classOwnership: ClassOwnershipChecker,
     private readonly classDisciplines: ClassDisciplineGateway,
+    private readonly assessmentPeriods: AssessmentPeriodGateway,
   ) {}
 
   async execute(input: CreateLessonInput): Promise<Lesson> {
@@ -33,12 +36,19 @@ export class CreateLessonUseCase {
       throw new ValidationError('Discipline is not linked to this class');
     }
 
+    await this.assessmentPeriods.assertUsableForClass({
+      teacherId: input.teacherId,
+      classId: input.classId,
+      assessmentPeriodId: input.assessmentPeriodId,
+    });
+
     assertEndTimeAfterStartTime(input.startTime, input.endTime);
 
     return this.lessons.create({
       teacherId: input.teacherId,
       classId: input.classId,
       disciplineId: input.disciplineId,
+      assessmentPeriodId: input.assessmentPeriodId,
       date: input.date,
       startTime: input.startTime,
       endTime: input.endTime,

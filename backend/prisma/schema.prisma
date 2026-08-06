@@ -45,6 +45,7 @@ model User {
   activities           Activity[]
   activityGroups       ActivityGroup[]
   submissions          Submission[]
+  agendaNotes          AgendaNote[]
 
   @@map("users")
 }
@@ -151,6 +152,8 @@ model AssessmentPeriod {
   academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
   class        Class?       @relation(fields: [classId], references: [id])
   activities   Activity[]
+  lessons      Lesson[]
+  contents     Content[]
 
   @@index([teacherId])
   @@index([academicYearId])
@@ -284,6 +287,7 @@ model Lesson {
   teacherId           String    @map("teacher_id") @db.Uuid
   classId             String    @map("class_id") @db.Uuid
   disciplineId        String    @map("discipline_id") @db.Uuid
+  assessmentPeriodId  String?   @map("assessment_period_id") @db.Uuid
   date                DateTime  @db.Date
   startTime           String    @map("start_time") @db.VarChar(5)
   endTime             String    @map("end_time") @db.VarChar(5)
@@ -293,17 +297,20 @@ model Lesson {
   updatedAt           DateTime  @updatedAt @map("updated_at")
   deletedAt           DateTime? @map("deleted_at")
 
-  teacher        User            @relation(fields: [teacherId], references: [id])
-  class          Class           @relation(fields: [classId], references: [id])
-  discipline     Discipline      @relation(fields: [disciplineId], references: [id])
-  attendances    Attendance[]
-  lessonContents LessonContent[]
-  activities     Activity[]
+  teacher            User               @relation(fields: [teacherId], references: [id])
+  class              Class              @relation(fields: [classId], references: [id])
+  discipline         Discipline         @relation(fields: [disciplineId], references: [id])
+  assessmentPeriod   AssessmentPeriod?  @relation(fields: [assessmentPeriodId], references: [id])
+  attendances        Attendance[]
+  lessonContents     LessonContent[]
+  activities         Activity[]
 
   @@index([teacherId])
   @@index([classId, date])
   @@index([classId, disciplineId])
+  @@index([classId, assessmentPeriodId])
   @@index([disciplineId])
+  @@index([assessmentPeriodId])
   @@index([teacherId, attendanceCompleted, date])
   @@map("lessons")
 }
@@ -314,28 +321,32 @@ enum ContentStatus {
 }
 
 model Content {
-  id           String        @id @default(uuid()) @db.Uuid
-  teacherId    String        @map("teacher_id") @db.Uuid
-  classId      String        @map("class_id") @db.Uuid
-  disciplineId String        @map("discipline_id") @db.Uuid
-  title        String        @db.VarChar(200)
-  description  String?       @db.Text
-  status       ContentStatus @default(IN_PROGRESS)
-  startedAt    DateTime      @default(now()) @map("started_at")
-  completedAt  DateTime?     @map("completed_at")
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
-  deletedAt    DateTime?     @map("deleted_at")
+  id                 String        @id @default(uuid()) @db.Uuid
+  teacherId          String        @map("teacher_id") @db.Uuid
+  classId            String        @map("class_id") @db.Uuid
+  disciplineId       String        @map("discipline_id") @db.Uuid
+  assessmentPeriodId String?       @map("assessment_period_id") @db.Uuid
+  title              String        @db.VarChar(200)
+  description        String?       @db.Text
+  status             ContentStatus @default(IN_PROGRESS)
+  startedAt          DateTime      @default(now()) @map("started_at")
+  completedAt        DateTime?     @map("completed_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  deletedAt          DateTime?     @map("deleted_at")
 
-  teacher        User            @relation(fields: [teacherId], references: [id])
-  class          Class           @relation(fields: [classId], references: [id])
-  discipline     Discipline      @relation(fields: [disciplineId], references: [id])
-  lessonContents LessonContent[]
+  teacher          User               @relation(fields: [teacherId], references: [id])
+  class            Class              @relation(fields: [classId], references: [id])
+  discipline       Discipline         @relation(fields: [disciplineId], references: [id])
+  assessmentPeriod AssessmentPeriod?  @relation(fields: [assessmentPeriodId], references: [id])
+  lessonContents   LessonContent[]
 
   @@index([teacherId])
   @@index([classId])
   @@index([classId, disciplineId])
+  @@index([classId, assessmentPeriodId])
   @@index([disciplineId])
+  @@index([assessmentPeriodId])
   @@index([teacherId, status, classId])
   @@map("contents")
 }
@@ -426,6 +437,9 @@ model Activity {
   maxScore           Decimal            @default(100) @map("max_score") @db.Decimal(6, 2)
   createdOn          DateTime           @default(now()) @map("created_on") @db.Date
   dueDate            DateTime           @map("due_date") @db.Date
+  /// Professor confirma que a avaliação da atividade foi encerrada.
+  evaluated          Boolean            @default(false)
+  evaluatedAt        DateTime?          @map("evaluated_at")
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
   deletedAt          DateTime?          @map("deleted_at")
@@ -443,6 +457,7 @@ model Activity {
   @@index([originLessonId])
   @@index([assessmentPeriodId])
   @@index([teacherId, dueDate, classId])
+  @@index([teacherId, evaluated, dueDate])
   @@index([teacherId, tag])
   @@index([classId, tag])
   @@map("activities")
@@ -500,6 +515,27 @@ model ActivityGroupMember {
   @@index([groupId])
   @@index([studentId])
   @@map("activity_group_members")
+}
+
+// ---------------------------------------------------------------------------
+// Agenda (anotações do professor)
+// ---------------------------------------------------------------------------
+
+model AgendaNote {
+  id        String   @id @default(uuid()) @db.Uuid
+  teacherId String   @map("teacher_id") @db.Uuid
+  date      DateTime @db.Date
+  content   String   @db.Text
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  teacher User @relation(fields: [teacherId], references: [id])
+
+  @@index([teacherId])
+  @@index([teacherId, date])
+  @@index([teacherId, completed])
+  @@map("agenda_notes")
 }
 
 enum SubmissionStatus {

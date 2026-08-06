@@ -6,8 +6,10 @@ import 'package:intl/intl.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/widgets/async_value_widget.dart';
 import '../../../core/widgets/status_chip.dart';
+import '../../../domain/entities/assessment_period.dart';
 import '../../../domain/entities/lesson.dart';
 import '../../../domain/entities/school_class.dart';
+import '../../providers/academic_providers.dart';
 import '../../providers/lessons_providers.dart';
 import 'bulk_lessons_dialog.dart';
 
@@ -18,6 +20,7 @@ final _dateFormat = DateFormat('dd/MM/yyyy');
 /// [disciplines] são as disciplinas vinculadas à turma (para o seletor do
 /// formulário de criação) e [disciplineFilter] restringe a listagem à
 /// disciplina selecionada no topo do detalhe da turma (`null` = todas).
+/// Listagem e criação usam o período avaliativo global do AppBar.
 class LessonsTab extends ConsumerWidget {
   const LessonsTab({
     super.key,
@@ -32,7 +35,7 @@ class LessonsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final query = (classId: classId, disciplineId: disciplineFilter);
+    final query = lessonsQueryFor(ref, classId, disciplineId: disciplineFilter);
     final lessonsAsync = ref.watch(lessonsListProvider(query));
     final disciplineNames = {for (final d in disciplines) d.id: d.name};
 
@@ -63,7 +66,7 @@ class LessonsTab extends ConsumerWidget {
           onRetry: () => ref.invalidate(lessonsListProvider(query)),
           isEmpty: (list) => list.isEmpty,
           emptyIcon: Icons.event_note_outlined,
-          emptyMessage: 'Nenhuma aula cadastrada ainda.',
+          emptyMessage: 'Nenhuma aula cadastrada neste período.',
           data: (lessons) => ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
             itemCount: lessons.length,
@@ -114,6 +117,17 @@ class LessonsTab extends ConsumerWidget {
     );
   }
 
+  String? _requirePeriodId(BuildContext context, WidgetRef ref) {
+    final periodId = ref.read(effectiveAssessmentPeriodIdProvider);
+    if (periodId != null) return periodId;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Cadastre um período avaliativo em Config (ex.: 1º Trimestre) antes de lançar aulas.'),
+      ),
+    );
+    return null;
+  }
+
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref, Lesson lesson) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -138,6 +152,8 @@ class LessonsTab extends ConsumerWidget {
       );
       return;
     }
+    final periodId = _requirePeriodId(context, ref);
+    if (periodId == null) return;
 
     final draft = await showDialog<BulkLessonsDraft>(
       context: context,
@@ -149,6 +165,7 @@ class LessonsTab extends ConsumerWidget {
       final result = await ref.read(lessonsActionsProvider).bulkCreate(
             classId,
             disciplineId: draft.disciplineId,
+            assessmentPeriodId: periodId,
             dates: draft.dates,
             startTime: draft.startTime,
             endTime: draft.endTime,
@@ -174,6 +191,27 @@ class LessonsTab extends ConsumerWidget {
       return;
     }
 
+    final periods = [
+      ...(ref.read(effectiveYearPeriodsProvider).valueOrNull ?? const <AssessmentPeriod>[]),
+    ]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    if (periods.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cadastre um período avaliativo em Config (ex.: 1º Trimestre) antes de lançar aulas.'),
+        ),
+      );
+      return;
+    }
+
+    final contextPeriodId = ref.read(effectiveAssessmentPeriodIdProvider);
+    String assessmentPeriodId = lesson?.assessmentPeriodId ??
+        contextPeriodId ??
+        periods.first.id;
+    // Se o período da aula não estiver na lista (ex.: outro ano), cai no contexto/primeiro.
+    if (!periods.any((p) => p.id == assessmentPeriodId)) {
+      assessmentPeriodId = contextPeriodId ?? periods.first.id;
+    }
+
     final formKey = GlobalKey<FormState>();
     DateTime date = lesson?.date ?? DateTime.now();
     String disciplineId = lesson?.disciplineId ?? disciplines.first.id;
@@ -192,6 +230,21 @@ class LessonsTab extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: assessmentPeriodId,
+                    decoration: const InputDecoration(labelText: 'Período'),
+                    items: periods
+                        .map(
+                          (p) => DropdownMenuItem<String>(
+                            value: p.id,
+                            child: Text(p.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => assessmentPeriodId = value!),
+                    validator: (v) => (v == null || v.isEmpty) ? 'Selecione o período' : null,
+                  ),
+                  const SizedBox(height: 12),
                   if (lesson == null)
                     DropdownButtonFormField<String>(
                       initialValue: disciplineId,
@@ -205,7 +258,12 @@ class LessonsTab extends ConsumerWidget {
                       leading: const Icon(Icons.menu_book_outlined),
                       title: const Text('Disciplina'),
                       subtitle: Text(
-                        disciplines.firstWhere((d) => d.id == disciplineId, orElse: () => ClassDisciplineRef(id: disciplineId, name: '—')).name,
+                        disciplines
+                            .firstWhere(
+                              (d) => d.id == disciplineId,
+                              orElse: () => ClassDisciplineRef(id: disciplineId, name: '—'),
+                            )
+                            .name,
                       ),
                     ),
                   const SizedBox(height: 12),
@@ -229,7 +287,8 @@ class LessonsTab extends ConsumerWidget {
                         child: TextFormField(
                           controller: startController,
                           decoration: const InputDecoration(labelText: 'Início (HH:mm)'),
-                          validator: (v) => (v == null || !RegExp(r'^\d{2}:\d{2}$').hasMatch(v)) ? 'HH:mm' : null,
+                          validator: (v) =>
+                              (v == null || !RegExp(r'^\d{2}:\d{2}$').hasMatch(v)) ? 'HH:mm' : null,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -237,7 +296,8 @@ class LessonsTab extends ConsumerWidget {
                         child: TextFormField(
                           controller: endController,
                           decoration: const InputDecoration(labelText: 'Fim (HH:mm)'),
-                          validator: (v) => (v == null || !RegExp(r'^\d{2}:\d{2}$').hasMatch(v)) ? 'HH:mm' : null,
+                          validator: (v) =>
+                              (v == null || !RegExp(r'^\d{2}:\d{2}$').hasMatch(v)) ? 'HH:mm' : null,
                         ),
                       ),
                     ],
@@ -273,6 +333,7 @@ class LessonsTab extends ConsumerWidget {
         await actions.create(
           classId,
           disciplineId: disciplineId,
+          assessmentPeriodId: assessmentPeriodId,
           date: date,
           startTime: startController.text,
           endTime: endController.text,
@@ -286,6 +347,7 @@ class LessonsTab extends ConsumerWidget {
           startTime: startController.text,
           endTime: endController.text,
           observations: observationsController.text.trim().isEmpty ? null : observationsController.text.trim(),
+          assessmentPeriodId: assessmentPeriodId,
         );
       }
     } catch (e) {

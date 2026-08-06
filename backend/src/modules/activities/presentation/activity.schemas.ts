@@ -42,6 +42,7 @@ const activityTagSchema = z.preprocess((value) => {
 export const listActivitiesQuerySchema = z.object({
   disciplineId: z.uuid().optional(),
   tag: z.string().trim().min(1).max(80).optional(),
+  assessmentPeriodId: z.uuid().optional(),
 });
 
 /**
@@ -54,7 +55,7 @@ export const createActivitySchema = z
     originLessonId: z.uuid().nullish(),
     disciplineId: z.uuid().optional(),
     disciplineIds: z.array(z.uuid()).optional(),
-    assessmentPeriodId: z.uuid().nullish(),
+    assessmentPeriodId: z.uuid(),
     title: z.string().trim().min(2).max(200),
     description: z.string().trim().max(5000).nullish(),
     tag: activityTagSchema.optional(),

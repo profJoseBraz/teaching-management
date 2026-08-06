@@ -11,9 +11,11 @@ import '../../../core/widgets/markdown_text.dart';
 import '../../../core/widgets/status_chip.dart';
 import '../../../domain/entities/activity.dart';
 import '../../../domain/entities/activity_detail.dart';
+import '../../../domain/entities/assessment_period.dart';
 import '../../../domain/entities/enrollment.dart';
 import '../../../domain/entities/school_class.dart';
 import '../../../domain/entities/submission.dart';
+import '../../providers/academic_providers.dart';
 import '../../providers/activities_providers.dart';
 import '../../providers/classes_providers.dart';
 
@@ -128,6 +130,17 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
                       }),
             ),
             IconButton(
+              icon: Icon(
+                detail?.activity.evaluated == true
+                    ? Icons.replay_rounded
+                    : Icons.verified_outlined,
+              ),
+              tooltip: detail?.activity.evaluated == true
+                  ? 'Reabrir correção'
+                  : 'Marcar como Avaliada',
+              onPressed: detail == null ? null : () => _toggleEvaluated(detail.activity),
+            ),
+            IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: 'Editar atividade',
               onPressed: () {
@@ -210,6 +223,7 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
                                 label: Text(disciplineNames[id] ?? 'Disciplina'),
                               ),
                             ),
+                            StatusChip.activityEvaluation(activity.evaluated),
                             Chip(label: Text(activity.categoryLabel)),
                             Chip(label: Text(activity.isGroup ? 'Em grupo' : 'Individual')),
                             Chip(label: Text(activity.isSharedGrade ? 'Nota compartilhada' : 'Nota individual')),
@@ -326,19 +340,16 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
                                               activityId: widget.activityId,
                                             ),
                                       ),
-                                    if (submission.status == 'SUBMITTED')
+                                    if (submission.status == 'SUBMITTED' || submission.status == 'GRADED')
                                       IconButton(
                                         icon: const Icon(Icons.undo_rounded),
                                         tooltip: 'Voltar para pendente',
-                                        onPressed: () => ref.read(activitiesActionsProvider).markPending(
-                                              submission.id,
-                                              activityId: widget.activityId,
-                                            ),
+                                        onPressed: () => _revertToPending(submission),
                                       ),
                                     if (submission.status != 'PENDING')
                                       IconButton(
                                         icon: const Icon(Icons.grade_outlined),
-                                        tooltip: 'Avaliar',
+                                        tooltip: submission.status == 'GRADED' ? 'Reavaliar' : 'Avaliar',
                                         onPressed: () => _openGradeDialog(
                                           activity.maxScore,
                                           submission,
@@ -357,6 +368,39 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _revertToPending(Submission submission) async {
+    final isGraded = submission.status == 'GRADED';
+    if (isGraded) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Voltar para pendente'),
+          content: const Text(
+            'Esta entrega está Avaliada. Ao voltar para Pendente, a nota e as observações serão removidas.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirmar')),
+          ],
+        ),
+      );
+      if (confirm != true || !mounted) return;
+    }
+
+    try {
+      await ref.read(activitiesActionsProvider).markPending(
+            submission.id,
+            activityId: widget.activityId,
+          );
+    } catch (e) {
+      if (!mounted) return;
+      final detail = e is AppException ? e.displayMessage : e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao voltar para pendente: $detail')),
+      );
+    }
   }
 
   Future<void> _openBulkGradeDialog(double maxScore) async {
@@ -439,15 +483,60 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
     }
   }
 
+  Future<void> _toggleEvaluated(Activity activity) async {
+    try {
+      final actions = ref.read(activitiesActionsProvider);
+      if (activity.evaluated) {
+        await actions.reopenEvaluation(activity.id, classId: widget.classId);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Atividade reaberta para correção.')),
+        );
+      } else {
+        await actions.markEvaluated(activity.id, classId: widget.classId);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Atividade marcada como Avaliada.')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      final detail = e is AppException ? e.displayMessage : e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao atualizar status: $detail')),
+      );
+    }
+  }
+
   Future<void> _openEditActivityDialog(
     Activity activity,
     List<ClassDisciplineRef> disciplines,
   ) async {
+    final periods = [
+      ...(ref.read(effectiveYearPeriodsProvider).valueOrNull ?? const <AssessmentPeriod>[]),
+    ]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    if (periods.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cadastre um período avaliativo em Config antes de editar a atividade.'),
+        ),
+      );
+      return;
+    }
+
+    final contextPeriodId = ref.read(effectiveAssessmentPeriodIdProvider);
+    var initialPeriodId = activity.assessmentPeriodId ?? contextPeriodId ?? periods.first.id;
+    if (!periods.any((p) => p.id == initialPeriodId)) {
+      initialPeriodId = contextPeriodId ?? periods.first.id;
+    }
+
     final draft = await showDialog<_EditActivityDraft>(
       context: context,
       builder: (context) => _EditActivityDialog(
         activity: activity,
         disciplines: disciplines,
+        periods: periods,
+        initialAssessmentPeriodId: initialPeriodId,
       ),
     );
     if (draft == null || !mounted) return;
@@ -463,6 +552,7 @@ class _ActivityDetailScreenState extends ConsumerState<ActivityDetailScreen> {
             maxScore: draft.maxScore,
             dueDate: draft.dueDate,
             disciplineIds: draft.disciplineIds,
+            assessmentPeriodId: draft.assessmentPeriodId,
           );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -841,6 +931,7 @@ typedef _EditActivityDraft = ({
   double maxScore,
   DateTime dueDate,
   List<String> disciplineIds,
+  String assessmentPeriodId,
 });
 
 /// Diálogo Stateful para descartar controllers só no `dispose` do State
@@ -849,10 +940,14 @@ class _EditActivityDialog extends StatefulWidget {
   const _EditActivityDialog({
     required this.activity,
     required this.disciplines,
+    required this.periods,
+    required this.initialAssessmentPeriodId,
   });
 
   final Activity activity;
   final List<ClassDisciplineRef> disciplines;
+  final List<AssessmentPeriod> periods;
+  final String initialAssessmentPeriodId;
 
   @override
   State<_EditActivityDialog> createState() => _EditActivityDialogState();
@@ -867,6 +962,7 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
   late String _category;
   late DateTime _dueDate;
   late final Set<String> _selectedDisciplineIds;
+  late String _assessmentPeriodId;
   var _showDisciplineError = false;
 
   @override
@@ -880,6 +976,7 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
     _category = activity.category;
     _dueDate = activity.dueDate;
     _selectedDisciplineIds = {...activity.disciplineIds};
+    _assessmentPeriodId = widget.initialAssessmentPeriodId;
   }
 
   @override
@@ -908,6 +1005,7 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
       maxScore: maxScore,
       dueDate: _dueDate,
       disciplineIds: _selectedDisciplineIds.toList(),
+      assessmentPeriodId: _assessmentPeriodId,
     ));
   }
 
@@ -924,6 +1022,23 @@ class _EditActivityDialogState extends State<_EditActivityDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              DropdownButtonFormField<String>(
+                initialValue: _assessmentPeriodId,
+                decoration: const InputDecoration(labelText: 'Período'),
+                items: widget.periods
+                    .map(
+                      (p) => DropdownMenuItem<String>(
+                        value: p.id,
+                        child: Text(p.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) setState(() => _assessmentPeriodId = value);
+                },
+                validator: (v) => (v == null || v.isEmpty) ? 'Selecione o período' : null,
+              ),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _titleController,
                 decoration: const InputDecoration(labelText: 'Título'),

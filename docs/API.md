@@ -24,6 +24,12 @@ Cria professor (`role=PROFESSOR`) e retorna tokens.
 ### `POST /auth/login`
 Autentica e retorna `{ user, tokens }`.
 
+### `POST /auth/refresh`
+Body `{ refreshToken }`. Renova o par `accessToken`/`refreshToken` sem novo login.
+Usado pelo app quando o access expira (`JWT_EXPIRES_IN`, default 15m); o refresh
+dura `REFRESH_TOKEN_EXPIRES_IN` (default 7d). Resposta: `{ data: { tokens } }`.
+`401` se o refresh for inválido ou expirado.
+
 ### `GET /auth/me`
 Retorna o usuário autenticado.
 
@@ -63,6 +69,16 @@ ids existentes do ano letivo, sem repetição).
 - No app (Turma → Alunos → **Colar lista**): `preview` → tela de confirmação com checkboxes
   → `batch` (novos) + `enrollments/bulk` (selecionados)
 
+### Agenda (`src/modules/agenda`)
+
+Anotações do professor: **várias anotações distintas por data** (`agenda_notes`).
+Status `completed` (padrão `false` = não concluída). Agrupamento por dia é só na UI.
+
+- `GET /agenda-notes?from=&to=&search=&completed=` — lista (data desc, depois criação desc);
+  `completed=true|false` filtra por status; omitido = todas
+- `POST /agenda-notes` — cria sempre uma nova anotação (`{ date, content, completed? }`)
+- `GET/PATCH/DELETE /agenda-notes/{id}` — leitura, alteração (data/conteúdo/`completed`) e exclusão definitiva
+
 ### Classes & Enrollments (`src/modules/classes`)
 
 - `GET /classes?academicYearId=&courseId=&disciplineId=&status=` · `POST /classes`
@@ -91,23 +107,25 @@ com vínculo ativo àquela disciplina (`classDisciplines.some`); `EnrollStudent`
 
 ### Lessons (`src/modules/lessons`)
 
-- `GET /classes/{classId}/lessons` (aceita filtro `?disciplineId=`) · `POST /classes/{classId}/lessons`
-- `POST /classes/{classId}/lessons/bulk` (body `{ disciplineId, dates[], startTime, endTime, observations? }`) — cadastra várias aulas com o mesmo horário/disciplina (máx. 200 datas)
-- `GET/PATCH/DELETE /lessons/{id}` (`DELETE` = soft delete)
+- `GET /classes/{classId}/lessons` (filtros `?disciplineId=` e `?assessmentPeriodId=`) · `POST /classes/{classId}/lessons`
+- `POST /classes/{classId}/lessons/bulk` (body `{ disciplineId, assessmentPeriodId, dates[], startTime, endTime, observations? }`) — cadastra várias aulas com o mesmo horário/disciplina/período (máx. 200 datas)
+- `GET/PATCH/DELETE /lessons/{id}` (`DELETE` = soft delete; `PATCH` aceita `assessmentPeriodId` para mover a aula de período)
 
-Regras de domínio: `disciplineId` é obrigatório na criação e deve corresponder a um vínculo `ClassDiscipline`
-ativo da turma; `endTime` deve ser estritamente posterior a `startTime` (formato `HH:mm`).
+Regras de domínio: `disciplineId` e `assessmentPeriodId` são obrigatórios na criação;
+`disciplineId` deve corresponder a um vínculo `ClassDiscipline` ativo da turma;
+`assessmentPeriodId` deve pertencer ao ano letivo da turma (e ao professor);
+`endTime` deve ser estritamente posterior a `startTime` (formato `HH:mm`).
 
 ### Contents (`src/modules/contents`)
 
-- `GET/POST /classes/{classId}/contents` (`GET` aceita filtros `?status=` e `?disciplineId=`)
-- `PATCH /contents/{id}`
+- `GET/POST /classes/{classId}/contents` (`GET` aceita `?status=`, `?disciplineId=` e `?assessmentPeriodId=`)
+- `PATCH /contents/{id}` (aceita `assessmentPeriodId` para mover o conteúdo de período)
 - `POST /contents/{id}/complete` | `POST /contents/{id}/reopen`
 - `POST /lessons/{lessonId}/contents` (body `{ contentId }`) — vincula conteúdo à aula (mesma turma)
 - `DELETE /lessons/{lessonId}/contents/{contentId}` — desvincula
 
-Regra de domínio: `disciplineId` é obrigatório na criação e deve corresponder a um vínculo `ClassDiscipline`
-ativo da turma.
+Regra de domínio: `disciplineId` e `assessmentPeriodId` são obrigatórios na criação;
+`disciplineId` deve estar vinculado à turma; o período deve pertencer ao ano letivo da turma.
 
 ### Attendance (`src/modules/attendance`)
 
@@ -124,18 +142,21 @@ alunos pendentes. Não há preenchimento automático como `PRESENT`.
 - Em `development`, o limite geral da API fica **desligado** (evita travar o app Flutter
   durante desenvolvimento).
 - Em produção: `RATE_LIMIT_MAX` requests por `RATE_LIMIT_WINDOW_MS` (default 2000 / 15min).
-- `POST /auth/login` e `POST /auth/register` têm limite próprio (30 / 15min), sempre ativo.
+- `POST /auth/login`, `/auth/register` e `/auth/refresh` têm limite próprio (30 / 15min), sempre ativo.
 - Resposta `429`: `{ error: { code: "RATE_LIMIT_EXCEEDED", message: "..." } }`.
 
 ### Activities (`src/modules/activities`)
 
-- `GET /classes/{classId}/activities` (aceita filtro `?disciplineId=` e `?tag=`) · `POST /classes/{classId}/activities`
-- `GET/PATCH/DELETE /activities/{id}` (`GET` inclui submissions + resumo agregado; `DELETE` = soft delete da atividade + submissions/grupos)
+- `GET /classes/{classId}/activities` (filtros `?disciplineId=`, `?tag=` e `?assessmentPeriodId=`) · `POST /classes/{classId}/activities`
+- `GET/PATCH/DELETE /activities/{id}` (`GET` inclui submissions + resumo agregado; `PATCH` aceita `assessmentPeriodId`; `DELETE` = soft delete da atividade + submissions/grupos)
+- `POST /activities/{id}/mark-evaluated` — marca a atividade como Avaliada (`evaluated=true`)
+- `POST /activities/{id}/reopen-evaluation` — reabre a correção (`evaluated=false`)
 - `POST /activities/{id}/groups` — cria/substitui grupos (`mode=GROUP`) e atribui `groupId` às submissions
 - `GET /activities/{id}/submissions`
 - `POST /activities/{id}/submissions/grade-bulk` — mesma nota para várias entregas
   (body `{ submissionIds: uuid[], score, observations? }`, máx. 200; todas devem ser da atividade)
-- `PATCH /submissions/{id}` (body `{ status: 'PENDING' | 'SUBMITTED' }`) — alterna pendente/entregue; não altera `GRADED`
+- `PATCH /submissions/{id}` (body `{ status: 'PENDING' | 'SUBMITTED' }`) — PENDING ↔ SUBMITTED;
+  também permite `GRADED → PENDING` (limpa nota/observações). `GRADED → SUBMITTED` não é permitido.
 - `POST /submissions/{id}/grade` — avalia individualmente (`score` entre `0` e `maxScore`)
 - `POST /activities/{activityId}/groups/{groupId}/grade-shared` — avalia grupo (`gradeMode=SHARED`), aplica a mesma nota a todos os membros
 
@@ -144,6 +165,10 @@ alunos pendentes. Não há preenchimento automático como `PRESENT`.
   turma, independentemente de `mode` ser `INDIVIDUAL` ou `GROUP`. Para `GROUP`, o `groupId` é atribuído
   posteriormente via `CreateActivityGroups`, sem bloquear a criação da atividade.
 - `originLessonId` no body é opcional (atividade pode existir sem aula de origem).
+- `assessmentPeriodId` é obrigatório na criação e deve pertencer ao ano letivo da turma.
+- `evaluated` / `evaluatedAt`: o professor confirma o encerramento da avaliação da atividade
+  (independente de ainda haver submissions `PENDING`). Atividades Avaliadas saem do insight
+  `OVERDUE_UNGRADED_ACTIVITIES` e do relatório de atividades sem correção.
 - `description` aceita até 5000 caracteres (`VARCHAR(5000)`), em **Markdown**
   (negrito, itálico, títulos, listas). O cliente renderiza na leitura; o backend
   armazena o texto bruto sem interpretar a marcação.

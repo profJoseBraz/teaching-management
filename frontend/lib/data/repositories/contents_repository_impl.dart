@@ -8,21 +8,48 @@ class ContentsRepositoryImpl implements ContentsRepository {
   final ContentsDatasource _datasource;
 
   @override
-  Future<List<ContentItem>> getContents(String classId, {String? status, String? disciplineId}) =>
-      _datasource.getContents(classId, status: status, disciplineId: disciplineId);
+  Future<List<ContentItem>> getContents(
+    String classId, {
+    String? status,
+    String? disciplineId,
+    String? assessmentPeriodId,
+  }) =>
+      _datasource.getContents(
+        classId,
+        status: status,
+        disciplineId: disciplineId,
+        assessmentPeriodId: assessmentPeriodId,
+      );
 
   @override
   Future<ContentItem> createContent(
     String classId, {
     required String disciplineId,
+    required String assessmentPeriodId,
     required String title,
     String? description,
   }) =>
-      _datasource.createContent(classId, disciplineId: disciplineId, title: title, description: description);
+      _datasource.createContent(
+        classId,
+        disciplineId: disciplineId,
+        assessmentPeriodId: assessmentPeriodId,
+        title: title,
+        description: description,
+      );
 
   @override
-  Future<ContentItem> updateContent(String id, {String? title, String? description}) =>
-      _datasource.updateContent(id, title: title, description: description);
+  Future<ContentItem> updateContent(
+    String id, {
+    String? title,
+    String? description,
+    String? assessmentPeriodId,
+  }) =>
+      _datasource.updateContent(
+        id,
+        title: title,
+        description: description,
+        assessmentPeriodId: assessmentPeriodId,
+      );
 
   @override
   Future<ContentItem> completeContent(String id) => _datasource.completeContent(id);

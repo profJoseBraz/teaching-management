@@ -14,6 +14,8 @@ class Activity {
     required this.maxScore,
     required this.createdOn,
     required this.dueDate,
+    this.evaluated = false,
+    this.evaluatedAt,
   });
 
   final String id;
@@ -32,10 +34,13 @@ class Activity {
   final double maxScore;
   final DateTime createdOn;
   final DateTime dueDate;
+  /// Professor confirma que a avaliação da atividade foi encerrada.
+  final bool evaluated;
+  final DateTime? evaluatedAt;
 
   bool get isGroup => mode == 'GROUP';
   bool get isSharedGrade => gradeMode == 'SHARED';
-  bool get isOverdue => dueDate.isBefore(DateTime.now());
+  bool get isOverdue => !evaluated && dueDate.isBefore(DateTime.now());
 
   static const categoryLabels = {
     'EXERCISE': 'Exercício',
@@ -54,4 +59,23 @@ class Activity {
     if (disciplineIds.isEmpty) return 'Disciplina';
     return disciplineIds.map((id) => namesById[id] ?? 'Disciplina').join(', ');
   }
+
+  Activity copyWith({bool? evaluated, DateTime? evaluatedAt}) => Activity(
+        id: id,
+        classId: classId,
+        disciplineIds: disciplineIds,
+        originLessonId: originLessonId,
+        assessmentPeriodId: assessmentPeriodId,
+        title: title,
+        description: description,
+        tag: tag,
+        category: category,
+        mode: mode,
+        gradeMode: gradeMode,
+        maxScore: maxScore,
+        createdOn: createdOn,
+        dueDate: dueDate,
+        evaluated: evaluated ?? this.evaluated,
+        evaluatedAt: evaluatedAt ?? this.evaluatedAt,
+      );
 }

@@ -59,6 +59,16 @@ export function createActivityRoutes(
     asyncHandler(activityController.remove),
   );
   router.post(
+    '/activities/:id/mark-evaluated',
+    validate(activityIdParamSchema, 'params'),
+    asyncHandler(activityController.markEvaluated),
+  );
+  router.post(
+    '/activities/:id/reopen-evaluation',
+    validate(activityIdParamSchema, 'params'),
+    asyncHandler(activityController.reopenEvaluation),
+  );
+  router.post(
     '/activities/:id/groups',
     validate(activityGroupsParamSchema, 'params'),
     validate(createActivityGroupsSchema),

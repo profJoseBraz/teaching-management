@@ -84,6 +84,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       return;
     }
     try {
+      // Se o access expirou, o AuthInterceptor renova com o refresh e
+      // reexecuta o GET /auth/me sem derrubar a sessão.
       final user = await _repository.me();
       state = AuthState(status: AuthStatus.authenticated, user: user);
     } catch (_) {

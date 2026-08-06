@@ -11,8 +11,18 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
   final ActivitiesDatasource _datasource;
 
   @override
-  Future<List<Activity>> getActivities(String classId, {String? disciplineId, String? tag}) =>
-      _datasource.getActivities(classId, disciplineId: disciplineId, tag: tag);
+  Future<List<Activity>> getActivities(
+    String classId, {
+    String? disciplineId,
+    String? tag,
+    String? assessmentPeriodId,
+  }) =>
+      _datasource.getActivities(
+        classId,
+        disciplineId: disciplineId,
+        tag: tag,
+        assessmentPeriodId: assessmentPeriodId,
+      );
 
   @override
   Future<ActivityDetail> getActivity(String id) => _datasource.getActivity(id);
@@ -22,7 +32,7 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
     String classId, {
     String? originLessonId,
     List<String> disciplineIds = const [],
-    String? assessmentPeriodId,
+    required String assessmentPeriodId,
     required String title,
     String? description,
     String? tag,
@@ -57,6 +67,7 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
     required double maxScore,
     required DateTime dueDate,
     List<String>? disciplineIds,
+    String? assessmentPeriodId,
   }) =>
       _datasource.updateActivity(
         id,
@@ -67,10 +78,17 @@ class ActivitiesRepositoryImpl implements ActivitiesRepository {
         maxScore: maxScore,
         dueDate: dueDate,
         disciplineIds: disciplineIds,
+        assessmentPeriodId: assessmentPeriodId,
       );
 
   @override
   Future<void> deleteActivity(String id) => _datasource.deleteActivity(id);
+
+  @override
+  Future<Activity> markEvaluated(String id) => _datasource.markEvaluated(id);
+
+  @override
+  Future<Activity> reopenEvaluation(String id) => _datasource.reopenEvaluation(id);
 
   @override
   Future<List<ActivityGroup>> createGroups(

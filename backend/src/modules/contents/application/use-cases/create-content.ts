@@ -1,3 +1,4 @@
+import type { AssessmentPeriodGateway } from '../../../../shared/application/ports/assessment-period-gateway';
 import type { ClassDisciplineGateway } from '../../../../shared/application/ports/class-discipline-gateway';
 import type { ClassOwnershipChecker } from '../../../../shared/application/ports/class-ownership-checker';
 import { ValidationError } from '../../../../shared/domain/errors';
@@ -8,6 +9,7 @@ export type CreateContentInput = {
   teacherId: string;
   classId: string;
   disciplineId: string;
+  assessmentPeriodId: string;
   title: string;
   description?: string | null;
 };
@@ -17,6 +19,7 @@ export class CreateContentUseCase {
     private readonly contents: ContentRepository,
     private readonly classOwnership: ClassOwnershipChecker,
     private readonly classDisciplines: ClassDisciplineGateway,
+    private readonly assessmentPeriods: AssessmentPeriodGateway,
   ) {}
 
   async execute(input: CreateContentInput): Promise<Content> {
@@ -30,10 +33,17 @@ export class CreateContentUseCase {
       throw new ValidationError('Discipline is not linked to this class');
     }
 
+    await this.assessmentPeriods.assertUsableForClass({
+      teacherId: input.teacherId,
+      classId: input.classId,
+      assessmentPeriodId: input.assessmentPeriodId,
+    });
+
     return this.contents.create({
       teacherId: input.teacherId,
       classId: input.classId,
       disciplineId: input.disciplineId,
+      assessmentPeriodId: input.assessmentPeriodId,
       title: input.title,
       description: input.description ?? null,
     });

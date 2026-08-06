@@ -207,6 +207,11 @@ class _CoursesTab extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: 'Editar curso',
+                      onPressed: () => _openEditDialog(context, ref, course),
+                    ),
+                    IconButton(
                       icon: const Icon(Icons.link_rounded),
                       tooltip: 'Vincular disciplinas',
                       onPressed: () => _openLinkDialog(context, ref, course),
@@ -269,6 +274,21 @@ class _CoursesTab extends ConsumerWidget {
     await ref.read(academicActionsProvider).createCourse(
           name: nameController.text.trim(),
           description: descriptionController.text.trim().isEmpty ? null : descriptionController.text.trim(),
+        );
+  }
+
+  Future<void> _openEditDialog(BuildContext context, WidgetRef ref, Course course) async {
+    final draft = await showDialog<({String name, String? description})>(
+      context: context,
+      useRootNavigator: true,
+      builder: (_) => _EditCourseDialog(course: course),
+    );
+    if (draft == null) return;
+
+    await ref.read(academicActionsProvider).updateCourse(
+          course.id,
+          name: draft.name,
+          description: draft.description,
         );
   }
 
@@ -555,6 +575,76 @@ class _PreferencesTab extends ConsumerWidget {
           icon: const Icon(Icons.logout_rounded),
           label: const Text('Sair da conta'),
         ),
+      ],
+    );
+  }
+}
+
+class _EditCourseDialog extends StatefulWidget {
+  const _EditCourseDialog({required this.course});
+
+  final Course course;
+
+  @override
+  State<_EditCourseDialog> createState() => _EditCourseDialogState();
+}
+
+class _EditCourseDialogState extends State<_EditCourseDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _descriptionController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.course.name);
+    _descriptionController = TextEditingController(text: widget.course.description ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    final description = _descriptionController.text.trim();
+    Navigator.pop(context, (
+      name: _nameController.text.trim(),
+      description: description.isEmpty ? null : description,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Editar curso'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Nome'),
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe um nome' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(labelText: 'Descrição (opcional)'),
+              textCapitalization: TextCapitalization.sentences,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        FilledButton(onPressed: _save, child: const Text('Salvar')),
       ],
     );
   }

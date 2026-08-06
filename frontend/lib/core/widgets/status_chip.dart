@@ -55,6 +55,10 @@ class StatusChip extends StatelessWidget {
     }
   }
 
+  factory StatusChip.activityEvaluation(bool evaluated) => evaluated
+      ? StatusChip(label: 'Avaliada', color: AppSeverityColors.low)
+      : StatusChip(label: 'Em correção', color: AppSeverityColors.medium);
+
   factory StatusChip.severity(String severity) {
     final color = AppSeverityColors.forSeverity(severity);
     final label = switch (severity) {

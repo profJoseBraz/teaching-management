@@ -1,3 +1,4 @@
+import type { AssessmentPeriodGateway } from '../../../../shared/application/ports/assessment-period-gateway';
 import type { ClassDisciplineGateway } from '../../../../shared/application/ports/class-discipline-gateway';
 import { NotFoundError, ValidationError } from '../../../../shared/domain/errors';
 import type { Activity } from '../../domain/activity';
@@ -7,6 +8,7 @@ export class UpdateActivityUseCase {
   constructor(
     private readonly activities: ActivityRepository,
     private readonly classDisciplines: ClassDisciplineGateway,
+    private readonly assessmentPeriods: AssessmentPeriodGateway,
   ) {}
 
   async execute(id: string, teacherId: string, patch: UpdateActivityInput): Promise<Activity> {
@@ -17,6 +19,14 @@ export class UpdateActivityUseCase {
 
     if (patch.maxScore !== undefined && patch.maxScore <= 0) {
       throw new ValidationError('maxScore must be greater than zero');
+    }
+
+    if (patch.assessmentPeriodId) {
+      await this.assessmentPeriods.assertUsableForClass({
+        teacherId,
+        classId: existing.classId,
+        assessmentPeriodId: patch.assessmentPeriodId,
+      });
     }
 
     if (patch.disciplineIds !== undefined) {

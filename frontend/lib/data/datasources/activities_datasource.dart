@@ -29,6 +29,8 @@ Activity activityFromJson(Map<String, dynamic> json) {
     maxScore: (json['maxScore'] as num?)?.toDouble() ?? 100,
     createdOn: DateTime.parse(json['createdOn'] as String),
     dueDate: DateTime.parse(json['dueDate'] as String),
+    evaluated: json['evaluated'] as bool? ?? false,
+    evaluatedAt: json['evaluatedAt'] != null ? DateTime.parse(json['evaluatedAt'] as String) : null,
   );
 }
 
@@ -80,12 +82,14 @@ class ActivitiesDatasource {
     String classId, {
     String? disciplineId,
     String? tag,
+    String? assessmentPeriodId,
   }) async {
     final response = await _apiClient.get(
       '/classes/$classId/activities',
       query: {
         'disciplineId': disciplineId,
         'tag': tag,
+        'assessmentPeriodId': assessmentPeriodId,
       },
     );
     return (response['data'] as List).map((e) => activityFromJson(e as Map<String, dynamic>)).toList();
@@ -101,7 +105,7 @@ class ActivitiesDatasource {
     String? originLessonId,
     /// Obrigatório sem [originLessonId]; com aula, a disciplina da aula é incluída automaticamente.
     List<String> disciplineIds = const [],
-    String? assessmentPeriodId,
+    required String assessmentPeriodId,
     required String title,
     String? description,
     String? tag,
@@ -114,7 +118,7 @@ class ActivitiesDatasource {
     final response = await _apiClient.post('/classes/$classId/activities', data: {
       if (originLessonId != null) 'originLessonId': originLessonId,
       if (disciplineIds.isNotEmpty) 'disciplineIds': disciplineIds,
-      if (assessmentPeriodId != null) 'assessmentPeriodId': assessmentPeriodId,
+      'assessmentPeriodId': assessmentPeriodId,
       'title': title,
       if (description != null) 'description': description,
       'tag': tag,
@@ -136,6 +140,7 @@ class ActivitiesDatasource {
     required double maxScore,
     required DateTime dueDate,
     List<String>? disciplineIds,
+    String? assessmentPeriodId,
   }) async {
     final response = await _apiClient.patch('/activities/$id', data: {
       'title': title,
@@ -145,11 +150,22 @@ class ActivitiesDatasource {
       'maxScore': maxScore,
       'dueDate': _formatDate(dueDate),
       if (disciplineIds != null) 'disciplineIds': disciplineIds,
+      if (assessmentPeriodId != null) 'assessmentPeriodId': assessmentPeriodId,
     });
     return activityFromJson(response['data'] as Map<String, dynamic>);
   }
 
   Future<void> deleteActivity(String id) => _apiClient.delete('/activities/$id');
+
+  Future<Activity> markEvaluated(String id) async {
+    final response = await _apiClient.post('/activities/$id/mark-evaluated');
+    return activityFromJson(response['data'] as Map<String, dynamic>);
+  }
+
+  Future<Activity> reopenEvaluation(String id) async {
+    final response = await _apiClient.post('/activities/$id/reopen-evaluation');
+    return activityFromJson(response['data'] as Map<String, dynamic>);
+  }
 
   Future<List<ActivityGroup>> createGroups(
     String activityId,

@@ -24,7 +24,7 @@ abstract interface class AcademicRepository {
   // Courses
   Future<List<Course>> getCourses();
   Future<Course> createCourse({required String name, String? description});
-  Future<Course> updateCourse(String id, {String? name, String? description});
+  Future<Course> updateCourse(String id, {required String name, String? description});
   Future<void> deleteCourse(String id);
 
   // Disciplines

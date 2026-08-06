@@ -6,6 +6,7 @@ import { env } from './config/env';
 import type { Container } from './di/container';
 import { openApiDocument } from './docs/openapi';
 import { createAcademicRoutes } from './modules/academic/presentation/academic.routes';
+import { createAgendaRoutes } from './modules/agenda/presentation/agenda.routes';
 import { createActivityRoutes } from './modules/activities/presentation/activity.routes';
 import { createAttendanceRoutes } from './modules/attendance/presentation/attendance.routes';
 import { createClassRoutes } from './modules/classes/presentation/class.routes';
@@ -52,6 +53,7 @@ export function createApp(container: Container) {
   // portanto são montadas na raiz do router de API.
   api.use(createAcademicRoutes(container.academicController, container.authMiddleware));
   api.use(createStudentRoutes(container.studentController, container.authMiddleware));
+  api.use(createAgendaRoutes(container.agendaController, container.authMiddleware));
   api.use(createClassRoutes(container.classController, container.authMiddleware));
   api.use(createLessonRoutes(container.lessonController, container.authMiddleware));
   api.use(createContentRoutes(container.contentController, container.authMiddleware));

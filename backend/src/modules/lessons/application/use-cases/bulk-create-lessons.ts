@@ -6,6 +6,7 @@ export type BulkCreateLessonsInput = {
   teacherId: string;
   classId: string;
   disciplineId: string;
+  assessmentPeriodId: string;
   dates: Date[];
   startTime: string;
   endTime: string;
@@ -56,6 +57,7 @@ export class BulkCreateLessonsUseCase {
         teacherId: input.teacherId,
         classId: input.classId,
         disciplineId: input.disciplineId,
+        assessmentPeriodId: input.assessmentPeriodId,
         date,
         startTime: input.startTime,
         endTime: input.endTime,

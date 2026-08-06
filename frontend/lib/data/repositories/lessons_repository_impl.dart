@@ -8,8 +8,16 @@ class LessonsRepositoryImpl implements LessonsRepository {
   final LessonsDatasource _datasource;
 
   @override
-  Future<List<Lesson>> getLessons(String classId, {String? disciplineId}) =>
-      _datasource.getLessons(classId, disciplineId: disciplineId);
+  Future<List<Lesson>> getLessons(
+    String classId, {
+    String? disciplineId,
+    String? assessmentPeriodId,
+  }) =>
+      _datasource.getLessons(
+        classId,
+        disciplineId: disciplineId,
+        assessmentPeriodId: assessmentPeriodId,
+      );
 
   @override
   Future<Lesson> getLesson(String id) => _datasource.getLesson(id);
@@ -18,6 +26,7 @@ class LessonsRepositoryImpl implements LessonsRepository {
   Future<Lesson> createLesson(
     String classId, {
     required String disciplineId,
+    required String assessmentPeriodId,
     required DateTime date,
     required String startTime,
     required String endTime,
@@ -26,6 +35,7 @@ class LessonsRepositoryImpl implements LessonsRepository {
       _datasource.createLesson(
         classId,
         disciplineId: disciplineId,
+        assessmentPeriodId: assessmentPeriodId,
         date: date,
         startTime: startTime,
         endTime: endTime,
@@ -36,6 +46,7 @@ class LessonsRepositoryImpl implements LessonsRepository {
   Future<({int totalCreated})> bulkCreateLessons(
     String classId, {
     required String disciplineId,
+    required String assessmentPeriodId,
     required List<DateTime> dates,
     required String startTime,
     required String endTime,
@@ -44,6 +55,7 @@ class LessonsRepositoryImpl implements LessonsRepository {
       _datasource.bulkCreateLessons(
         classId,
         disciplineId: disciplineId,
+        assessmentPeriodId: assessmentPeriodId,
         dates: dates,
         startTime: startTime,
         endTime: endTime,
@@ -57,6 +69,7 @@ class LessonsRepositoryImpl implements LessonsRepository {
     String? startTime,
     String? endTime,
     String? observations,
+    String? assessmentPeriodId,
   }) =>
       _datasource.updateLesson(
         id,
@@ -64,6 +77,7 @@ class LessonsRepositoryImpl implements LessonsRepository {
         startTime: startTime,
         endTime: endTime,
         observations: observations,
+        assessmentPeriodId: assessmentPeriodId,
       );
 
   @override

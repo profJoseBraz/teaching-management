@@ -7,6 +7,7 @@ import '../../domain/entities/activity_detail.dart';
 import '../../domain/entities/activity_group.dart';
 import '../../domain/entities/submission.dart';
 import '../../domain/repositories/activities_repository.dart';
+import 'academic_providers.dart';
 import 'session_providers.dart';
 
 final activitiesDatasourceProvider = Provider<ActivitiesDatasource>(
@@ -17,13 +18,23 @@ final activitiesRepositoryProvider = Provider<ActivitiesRepository>(
   (ref) => ActivitiesRepositoryImpl(ref.watch(activitiesDatasourceProvider)),
 );
 
-/// Filtro de listagem: turma obrigatória + disciplina/tag opcionais.
-typedef ActivitiesQuery = ({String classId, String? disciplineId, String? tag});
+/// Filtro de listagem: turma + disciplina/tag/período opcionais.
+typedef ActivitiesQuery = ({
+  String classId,
+  String? disciplineId,
+  String? tag,
+  String? assessmentPeriodId,
+});
 
 final activitiesListProvider = FutureProvider.family<List<Activity>, ActivitiesQuery>((ref, query) {
   return ref
       .watch(activitiesRepositoryProvider)
-      .getActivities(query.classId, disciplineId: query.disciplineId, tag: query.tag)
+      .getActivities(
+        query.classId,
+        disciplineId: query.disciplineId,
+        tag: query.tag,
+        assessmentPeriodId: query.assessmentPeriodId,
+      )
       .then((list) {
     list.sort((a, b) => b.dueDate.compareTo(a.dueDate));
     return list;
@@ -69,7 +80,7 @@ class ActivitiesActions {
     String classId, {
     String? originLessonId,
     List<String> disciplineIds = const [],
-    String? assessmentPeriodId,
+    required String assessmentPeriodId,
     required String title,
     String? description,
     String? tag,
@@ -107,6 +118,7 @@ class ActivitiesActions {
     required double maxScore,
     required DateTime dueDate,
     List<String>? disciplineIds,
+    String? assessmentPeriodId,
   }) async {
     await _repo.updateActivity(
       id,
@@ -117,6 +129,7 @@ class ActivitiesActions {
       maxScore: maxScore,
       dueDate: dueDate,
       disciplineIds: disciplineIds,
+      assessmentPeriodId: assessmentPeriodId,
     );
     _ref.invalidate(activitiesListProvider);
     _ref.invalidate(activityDetailProvider(id));
@@ -124,6 +137,18 @@ class ActivitiesActions {
 
   Future<void> delete(String id, {required String classId}) async {
     await _repo.deleteActivity(id);
+    _ref.invalidate(activitiesListProvider);
+    _ref.invalidate(activityDetailProvider(id));
+  }
+
+  Future<void> markEvaluated(String id, {required String classId}) async {
+    await _repo.markEvaluated(id);
+    _ref.invalidate(activitiesListProvider);
+    _ref.invalidate(activityDetailProvider(id));
+  }
+
+  Future<void> reopenEvaluation(String id, {required String classId}) async {
+    await _repo.reopenEvaluation(id);
     _ref.invalidate(activitiesListProvider);
     _ref.invalidate(activityDetailProvider(id));
   }
@@ -193,3 +218,12 @@ class ActivitiesActions {
 }
 
 final activitiesActionsProvider = Provider<ActivitiesActions>((ref) => ActivitiesActions(ref));
+
+ActivitiesQuery activitiesQueryFor(WidgetRef ref, String classId, {String? disciplineId, String? tag}) {
+  return (
+    classId: classId,
+    disciplineId: disciplineId,
+    tag: tag,
+    assessmentPeriodId: ref.watch(effectiveAssessmentPeriodIdProvider),
+  );
+}

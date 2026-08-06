@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../presentation/providers/session_providers.dart';
 import '../../presentation/screens/activities/activity_detail_screen.dart';
+import '../../presentation/screens/agenda/agenda_screen.dart';
 import '../../presentation/screens/attendance/attendance_screen.dart';
 import '../../presentation/screens/auth/login_screen.dart';
 import '../../presentation/screens/classes/class_detail_screen.dart';
@@ -22,6 +23,7 @@ abstract class AppRoutes {
   static const dashboard = '/dashboard';
   static const classes = '/classes';
   static const students = '/students';
+  static const agenda = '/agenda';
   static const reports = '/reports';
   static const settings = '/settings';
 
@@ -95,6 +97,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ]),
           StatefulShellBranch(routes: [
             GoRoute(path: AppRoutes.students, builder: (context, state) => const StudentsScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: AppRoutes.agenda, builder: (context, state) => const AgendaScreen()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(path: AppRoutes.reports, builder: (context, state) => const ReportsScreen()),

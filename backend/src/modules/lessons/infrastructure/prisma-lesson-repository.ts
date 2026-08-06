@@ -4,6 +4,7 @@ import type { Lesson } from '../domain/lesson';
 import type {
   CreateLessonInput,
   LessonRepository,
+  ListLessonsFilters,
   UpdateLessonInput,
 } from '../application/ports/lesson-repository';
 
@@ -13,6 +14,7 @@ function mapLesson(row: PrismaLesson): Lesson {
     teacherId: row.teacherId,
     classId: row.classId,
     disciplineId: row.disciplineId,
+    assessmentPeriodId: row.assessmentPeriodId,
     date: row.date,
     startTime: row.startTime,
     endTime: row.endTime,
@@ -31,6 +33,7 @@ export class PrismaLessonRepository implements LessonRepository {
         teacherId: input.teacherId,
         classId: input.classId,
         disciplineId: input.disciplineId,
+        assessmentPeriodId: input.assessmentPeriodId,
         date: input.date,
         startTime: input.startTime,
         endTime: input.endTime,
@@ -48,6 +51,9 @@ export class PrismaLessonRepository implements LessonRepository {
         ...(input.startTime !== undefined ? { startTime: input.startTime } : {}),
         ...(input.endTime !== undefined ? { endTime: input.endTime } : {}),
         ...(input.observations !== undefined ? { observations: input.observations } : {}),
+        ...(input.assessmentPeriodId !== undefined
+          ? { assessmentPeriodId: input.assessmentPeriodId }
+          : {}),
       },
     });
     return mapLesson(row);
@@ -60,13 +66,20 @@ export class PrismaLessonRepository implements LessonRepository {
     return row ? mapLesson(row) : null;
   }
 
-  async listByClass(classId: string, teacherId: string, disciplineId?: string): Promise<Lesson[]> {
+  async listByClass(
+    classId: string,
+    teacherId: string,
+    filters: ListLessonsFilters = {},
+  ): Promise<Lesson[]> {
     const rows = await prisma.lesson.findMany({
       where: {
         classId,
         teacherId,
         deletedAt: null,
-        ...(disciplineId ? { disciplineId } : {}),
+        ...(filters.disciplineId ? { disciplineId: filters.disciplineId } : {}),
+        ...(filters.assessmentPeriodId
+          ? { assessmentPeriodId: filters.assessmentPeriodId }
+          : {}),
       },
       orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
     });

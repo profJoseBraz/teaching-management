@@ -16,6 +16,7 @@ export const openApiDocument = {
     { name: 'Disciplines' },
     { name: 'Assessment Periods' },
     { name: 'Students' },
+    { name: 'Agenda' },
     { name: 'Classes' },
     { name: 'Lessons' },
     { name: 'Contents' },
@@ -460,12 +461,42 @@ export const openApiDocument = {
           notes: { type: 'string', nullable: true },
         },
       },
+      AgendaNote: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          teacherId: { type: 'string', format: 'uuid' },
+          date: { type: 'string', format: 'date' },
+          content: { type: 'string' },
+          completed: { type: 'boolean', default: false },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      CreateAgendaNoteRequest: {
+        type: 'object',
+        required: ['date', 'content'],
+        properties: {
+          date: { type: 'string', format: 'date' },
+          content: { type: 'string', minLength: 1, maxLength: 50000 },
+          completed: { type: 'boolean', default: false },
+        },
+      },
+      UpdateAgendaNoteRequest: {
+        type: 'object',
+        properties: {
+          date: { type: 'string', format: 'date' },
+          content: { type: 'string', minLength: 1, maxLength: 50000 },
+          completed: { type: 'boolean' },
+        },
+      },
       Lesson: {
         type: 'object',
         properties: {
           id: { type: 'string', format: 'uuid' },
           classId: { type: 'string', format: 'uuid' },
           disciplineId: { type: 'string', format: 'uuid' },
+          assessmentPeriodId: { type: 'string', format: 'uuid', nullable: true },
           date: { type: 'string', format: 'date' },
           startTime: { type: 'string', example: '08:00' },
           endTime: { type: 'string', example: '09:40' },
@@ -479,6 +510,7 @@ export const openApiDocument = {
           id: { type: 'string', format: 'uuid' },
           classId: { type: 'string', format: 'uuid' },
           disciplineId: { type: 'string', format: 'uuid' },
+          assessmentPeriodId: { type: 'string', format: 'uuid', nullable: true },
           title: { type: 'string' },
           description: { type: 'string', nullable: true },
           status: { type: 'string', enum: ['IN_PROGRESS', 'COMPLETED'] },
@@ -523,6 +555,11 @@ export const openApiDocument = {
           maxScore: { type: 'number', example: 100 },
           createdOn: { type: 'string', format: 'date' },
           dueDate: { type: 'string', format: 'date' },
+          evaluated: {
+            type: 'boolean',
+            description: 'Professor confirma que a avaliação da atividade foi encerrada.',
+          },
+          evaluatedAt: { type: 'string', format: 'date-time', nullable: true },
         },
       },
       Submission: {
@@ -566,12 +603,17 @@ export const openApiDocument = {
       },
       CreateLessonRequest: {
         type: 'object',
-        required: ['disciplineId', 'date', 'startTime', 'endTime'],
+        required: ['disciplineId', 'assessmentPeriodId', 'date', 'startTime', 'endTime'],
         properties: {
           disciplineId: {
             type: 'string',
             format: 'uuid',
             description: 'Deve estar vinculada à turma (ClassDiscipline ativo).',
+          },
+          assessmentPeriodId: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Período avaliativo do ano letivo da turma.',
           },
           date: { type: 'string', format: 'date' },
           startTime: { type: 'string', example: '08:00' },
@@ -581,12 +623,17 @@ export const openApiDocument = {
       },
       BulkCreateLessonsRequest: {
         type: 'object',
-        required: ['disciplineId', 'dates', 'startTime', 'endTime'],
+        required: ['disciplineId', 'assessmentPeriodId', 'dates', 'startTime', 'endTime'],
         properties: {
           disciplineId: {
             type: 'string',
             format: 'uuid',
             description: 'Deve estar vinculada à turma (ClassDiscipline ativo).',
+          },
+          assessmentPeriodId: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Período avaliativo do ano letivo da turma.',
           },
           dates: {
             type: 'array',
@@ -610,6 +657,11 @@ export const openApiDocument = {
       UpdateLessonRequest: {
         type: 'object',
         properties: {
+          assessmentPeriodId: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Permite mover a aula para outro período do ano letivo da turma.',
+          },
           date: { type: 'string', format: 'date' },
           startTime: { type: 'string', example: '08:00' },
           endTime: { type: 'string', example: '09:40' },
@@ -618,12 +670,17 @@ export const openApiDocument = {
       },
       CreateContentRequest: {
         type: 'object',
-        required: ['disciplineId', 'title'],
+        required: ['disciplineId', 'assessmentPeriodId', 'title'],
         properties: {
           disciplineId: {
             type: 'string',
             format: 'uuid',
             description: 'Deve estar vinculada à turma (ClassDiscipline ativo).',
+          },
+          assessmentPeriodId: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Período avaliativo do ano letivo da turma.',
           },
           title: { type: 'string' },
           description: { type: 'string', nullable: true },
@@ -632,6 +689,11 @@ export const openApiDocument = {
       UpdateContentRequest: {
         type: 'object',
         properties: {
+          assessmentPeriodId: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Permite mover o conteúdo para outro período do ano letivo da turma.',
+          },
           title: { type: 'string' },
           description: { type: 'string', nullable: true },
         },
@@ -663,7 +725,7 @@ export const openApiDocument = {
       },
       CreateActivityRequest: {
         type: 'object',
-        required: ['title', 'dueDate'],
+        required: ['title', 'dueDate', 'assessmentPeriodId'],
         properties: {
           originLessonId: {
             type: 'string',
@@ -682,7 +744,11 @@ export const openApiDocument = {
             format: 'uuid',
             description: 'Legado — aceito por compatibilidade e normalizado em `disciplineIds`.',
           },
-          assessmentPeriodId: { type: 'string', format: 'uuid', nullable: true },
+          assessmentPeriodId: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Período avaliativo do ano letivo da turma (obrigatório na criação).',
+          },
           title: { type: 'string', maxLength: 200 },
           description: {
             type: 'string',
@@ -785,7 +851,8 @@ export const openApiDocument = {
           status: {
             type: 'string',
             enum: ['PENDING', 'SUBMITTED'],
-            description: 'PENDING ↔ SUBMITTED. Entregas GRADED não podem mudar por este endpoint.',
+            description:
+              'PENDING ↔ SUBMITTED. Também aceita GRADED → PENDING (limpa nota/observações). GRADED → SUBMITTED não é permitido.',
           },
         },
       },
@@ -893,6 +960,52 @@ export const openApiDocument = {
           },
           '409': {
             description: 'E-mail já cadastrado',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/auth/refresh': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Renovar access/refresh tokens',
+        description:
+          'Troca um refresh token válido por um novo par. Não exige Bearer. Usado pelo cliente quando o access expira.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['refreshToken'],
+                properties: {
+                  refreshToken: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Tokens renovados',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'object',
+                      properties: {
+                        tokens: { $ref: '#/components/schemas/TokenPair' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Refresh inválido ou expirado',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
           },
         },
@@ -1629,6 +1742,115 @@ export const openApiDocument = {
         },
       },
     },
+    '/agenda-notes': {
+      get: {
+        tags: ['Agenda'],
+        summary: 'Listar anotações (mais recentes primeiro)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          {
+            name: 'completed',
+            in: 'query',
+            description: 'true = concluídas; false = não concluídas; omitir = todas',
+            schema: { type: 'boolean' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Lista de anotações',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { data: { type: 'array', items: { $ref: '#/components/schemas/AgendaNote' } } },
+                },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: ['Agenda'],
+        summary: 'Criar anotação (sempre um registro novo)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateAgendaNoteRequest' } } },
+        },
+        responses: {
+          '201': {
+            description: 'Anotação criada',
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { data: { $ref: '#/components/schemas/AgendaNote' } } },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/agenda-notes/{id}': {
+      get: {
+        tags: ['Agenda'],
+        summary: 'Obter anotação',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          '200': {
+            description: 'Anotação',
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { data: { $ref: '#/components/schemas/AgendaNote' } } },
+              },
+            },
+          },
+          '404': {
+            description: 'Não encontrado',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+      patch: {
+        tags: ['Agenda'],
+        summary: 'Atualizar anotação',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateAgendaNoteRequest' } } },
+        },
+        responses: {
+          '200': {
+            description: 'Anotação atualizada',
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { data: { $ref: '#/components/schemas/AgendaNote' } } },
+              },
+            },
+          },
+          '404': {
+            description: 'Não encontrado',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+      delete: {
+        tags: ['Agenda'],
+        summary: 'Excluir anotação',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          '204': { description: 'Excluído' },
+          '404': {
+            description: 'Não encontrado',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
     '/classes': {
       get: {
         tags: ['Classes'],
@@ -1972,6 +2194,7 @@ export const openApiDocument = {
         parameters: [
           { name: 'classId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
           { name: 'disciplineId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          { name: 'assessmentPeriodId', in: 'query', schema: { type: 'string', format: 'uuid' } },
         ],
         responses: {
           '200': {
@@ -2086,6 +2309,7 @@ export const openApiDocument = {
             schema: { type: 'string', enum: ['IN_PROGRESS', 'COMPLETED'] },
           },
           { name: 'disciplineId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          { name: 'assessmentPeriodId', in: 'query', schema: { type: 'string', format: 'uuid' } },
         ],
         responses: {
           '200': {
@@ -2266,6 +2490,7 @@ export const openApiDocument = {
             schema: { type: 'string', maxLength: 80 },
             description: 'Filtra atividades com esta tag (comparação case-insensitive).',
           },
+          { name: 'assessmentPeriodId', in: 'query', schema: { type: 'string', format: 'uuid' } },
         ],
         responses: {
           '200': {
@@ -2342,6 +2567,49 @@ export const openApiDocument = {
         responses: {
           '204': { description: 'Atividade excluída' },
           '404': { description: 'Não encontrada' },
+        },
+      },
+    },
+    '/activities/{id}/mark-evaluated': {
+      post: {
+        tags: ['Activities'],
+        summary: 'Marcar atividade como Avaliada',
+        description:
+          'Confirma que a avaliação da atividade foi encerrada (`evaluated=true`, `evaluatedAt=now`). Independente do status individual das submissions.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          '200': {
+            description: 'Atividade marcada como Avaliada',
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { data: { $ref: '#/components/schemas/Activity' } } },
+              },
+            },
+          },
+          '404': { description: 'Não encontrada' },
+          '422': { description: 'Já marcada como Avaliada' },
+        },
+      },
+    },
+    '/activities/{id}/reopen-evaluation': {
+      post: {
+        tags: ['Activities'],
+        summary: 'Reabrir correção da atividade',
+        description: 'Remove a marcação Avaliada (`evaluated=false`, `evaluatedAt=null`).',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          '200': {
+            description: 'Correção reaberta',
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { data: { $ref: '#/components/schemas/Activity' } } },
+              },
+            },
+          },
+          '404': { description: 'Não encontrada' },
+          '422': { description: 'Atividade não está marcada como Avaliada' },
         },
       },
     },
@@ -2428,8 +2696,9 @@ export const openApiDocument = {
     '/submissions/{id}': {
       patch: {
         tags: ['Submissions'],
-        summary: 'Atualizar status da submission (PENDING ↔ SUBMITTED)',
-        description: 'Permite marcar como entregue ou voltar para pendente. Entregas GRADED não podem mudar aqui.',
+        summary: 'Atualizar status da submission',
+        description:
+          'PENDING ↔ SUBMITTED; GRADED → PENDING desfaz avaliação por engano (limpa nota). GRADED → SUBMITTED não é permitido.',
         security: [{ bearerAuth: [] }],
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
         requestBody: {

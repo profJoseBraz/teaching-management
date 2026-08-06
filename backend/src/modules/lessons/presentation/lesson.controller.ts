@@ -18,8 +18,14 @@ export class LessonController {
 
   list = async (req: Request, res: Response): Promise<void> => {
     const { classId } = req.params as { classId: string };
-    const { disciplineId } = req.query as { disciplineId?: string };
-    const lessons = await this.listLessonsUseCase.execute(classId, req.auth!.teacherId, disciplineId);
+    const { disciplineId, assessmentPeriodId } = req.query as {
+      disciplineId?: string;
+      assessmentPeriodId?: string;
+    };
+    const lessons = await this.listLessonsUseCase.execute(classId, req.auth!.teacherId, {
+      disciplineId,
+      assessmentPeriodId,
+    });
     res.status(200).json({ data: lessons });
   };
 
@@ -39,6 +45,7 @@ export class LessonController {
       teacherId: req.auth!.teacherId,
       classId,
       disciplineId: req.body.disciplineId,
+      assessmentPeriodId: req.body.assessmentPeriodId,
       dates: req.body.dates,
       startTime: req.body.startTime,
       endTime: req.body.endTime,

@@ -15,10 +15,12 @@ export const lessonIdParamSchema = z.object({
 
 export const listLessonsQuerySchema = z.object({
   disciplineId: z.uuid().optional(),
+  assessmentPeriodId: z.uuid().optional(),
 });
 
 export const createLessonSchema = z.object({
   disciplineId: z.uuid(),
+  assessmentPeriodId: z.uuid(),
   date: z.coerce.date(),
   startTime: timeSchema,
   endTime: timeSchema,
@@ -27,6 +29,7 @@ export const createLessonSchema = z.object({
 
 export const bulkCreateLessonsSchema = z.object({
   disciplineId: z.uuid(),
+  assessmentPeriodId: z.uuid(),
   dates: z.array(z.coerce.date()).min(1).max(200),
   startTime: timeSchema,
   endTime: timeSchema,
@@ -39,5 +42,6 @@ export const updateLessonSchema = z
     startTime: timeSchema.optional(),
     endTime: timeSchema.optional(),
     observations: z.string().trim().max(2000).nullish(),
+    assessmentPeriodId: z.uuid().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No fields to update' });
