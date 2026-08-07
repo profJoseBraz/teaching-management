@@ -75,10 +75,25 @@ class AuthInterceptor extends Interceptor {
 
       final response = await _dio.fetch<dynamic>(retryOptions);
       handler.resolve(response);
-    } catch (_) {
-      await _forceLogout();
+    } catch (refreshError) {
+      // Só derruba a sessão quando o refresh for rejeitado (token inválido/expirado).
+      // Falha de rede/timeout não deve apagar tokens válidos.
+      if (_shouldForceLogoutAfterRefreshFailure(refreshError)) {
+        await _forceLogout();
+      }
       handler.next(err);
     }
+  }
+
+  bool _shouldForceLogoutAfterRefreshFailure(Object error) {
+    if (error is StateError) {
+      return true;
+    }
+    if (error is DioException) {
+      final status = error.response?.statusCode;
+      return status == 401 || status == 403;
+    }
+    return false;
   }
 
   Future<void> _forceLogout() async {

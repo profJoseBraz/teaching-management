@@ -88,6 +88,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // reexecuta o GET /auth/me sem derrubar a sessão.
       final user = await _repository.me();
       state = AuthState(status: AuthStatus.authenticated, user: user);
+    } on AppException catch (e) {
+      // API fora do ar / timeout: mantém tokens para tentar de novo depois.
+      if (e.code == 'NETWORK_ERROR' || e.code == 'TIMEOUT') {
+        state = AuthState(
+          status: AuthStatus.unauthenticated,
+          errorMessage: e.message,
+        );
+        return;
+      }
+      await _repository.logout();
+      state = AuthState(
+        status: AuthStatus.unauthenticated,
+        errorMessage: e.message,
+      );
     } catch (_) {
       await _repository.logout();
       state = const AuthState(status: AuthStatus.unauthenticated);
