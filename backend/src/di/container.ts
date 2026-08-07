@@ -64,6 +64,28 @@ import { UpdateAgendaNoteUseCase } from '../modules/agenda/application/use-cases
 import { PrismaAgendaNoteRepository } from '../modules/agenda/infrastructure/prisma-agenda-note-repository';
 import { AgendaController } from '../modules/agenda/presentation/agenda.controller';
 
+// --- Evaluation models ----------------------------------------------------
+import { CreateEvaluationModelUseCase } from '../modules/evaluation-models/application/use-cases/create-evaluation-model';
+import { CreateEvaluationModelItemUseCase } from '../modules/evaluation-models/application/use-cases/create-evaluation-model-item';
+import { DeactivateEvaluationModelUseCase } from '../modules/evaluation-models/application/use-cases/deactivate-evaluation-model';
+import { GetEvaluationModelUseCase } from '../modules/evaluation-models/application/use-cases/get-evaluation-model';
+import { ListEvaluationModelsUseCase } from '../modules/evaluation-models/application/use-cases/list-evaluation-models';
+import { ReorderEvaluationModelItemsUseCase } from '../modules/evaluation-models/application/use-cases/reorder-evaluation-model-items';
+import { SoftDeleteEvaluationModelUseCase } from '../modules/evaluation-models/application/use-cases/soft-delete-evaluation-model';
+import { SoftDeleteEvaluationModelItemUseCase } from '../modules/evaluation-models/application/use-cases/soft-delete-evaluation-model-item';
+import { UpdateEvaluationModelUseCase } from '../modules/evaluation-models/application/use-cases/update-evaluation-model';
+import { UpdateEvaluationModelItemUseCase } from '../modules/evaluation-models/application/use-cases/update-evaluation-model-item';
+import { PrismaEvaluationModelRepository } from '../modules/evaluation-models/infrastructure/prisma-evaluation-model-repository';
+import { EvaluationModelController } from '../modules/evaluation-models/presentation/evaluation-model.controller';
+
+// --- Grade compositions ---------------------------------------------------
+import { CalculateGradeCompositionUseCase } from '../modules/grade-compositions/application/use-cases/calculate-grade-composition';
+import { GetGradeCompositionByContextUseCase } from '../modules/grade-compositions/application/use-cases/get-grade-composition-by-context';
+import { SoftDeleteGradeCompositionUseCase } from '../modules/grade-compositions/application/use-cases/soft-delete-grade-composition';
+import { UpsertGradeCompositionUseCase } from '../modules/grade-compositions/application/use-cases/upsert-grade-composition';
+import { PrismaGradeCompositionRepository } from '../modules/grade-compositions/infrastructure/prisma-grade-composition-repository';
+import { GradeCompositionController } from '../modules/grade-compositions/presentation/grade-composition.controller';
+
 // --- Classes ------------------------------------------------------------
 import { ArchiveClassUseCase } from '../modules/classes/application/use-cases/archive-class';
 import { CreateClassUseCase } from '../modules/classes/application/use-cases/create-class';
@@ -492,6 +514,76 @@ export function createContainer() {
     gradeSubmissionsBulkUseCase,
   );
 
+  // --- Evaluation models ----------------------------------------------------
+  const evaluationModelRepository = new PrismaEvaluationModelRepository();
+
+  const createEvaluationModelUseCase = new CreateEvaluationModelUseCase(evaluationModelRepository);
+  const updateEvaluationModelUseCase = new UpdateEvaluationModelUseCase(evaluationModelRepository);
+  const listEvaluationModelsUseCase = new ListEvaluationModelsUseCase(evaluationModelRepository);
+  const getEvaluationModelUseCase = new GetEvaluationModelUseCase(evaluationModelRepository);
+  const softDeleteEvaluationModelUseCase = new SoftDeleteEvaluationModelUseCase(
+    evaluationModelRepository,
+  );
+  const deactivateEvaluationModelUseCase = new DeactivateEvaluationModelUseCase(
+    evaluationModelRepository,
+  );
+  const createEvaluationModelItemUseCase = new CreateEvaluationModelItemUseCase(
+    evaluationModelRepository,
+  );
+  const updateEvaluationModelItemUseCase = new UpdateEvaluationModelItemUseCase(
+    evaluationModelRepository,
+  );
+  const softDeleteEvaluationModelItemUseCase = new SoftDeleteEvaluationModelItemUseCase(
+    evaluationModelRepository,
+  );
+  const reorderEvaluationModelItemsUseCase = new ReorderEvaluationModelItemsUseCase(
+    evaluationModelRepository,
+  );
+
+  const evaluationModelController = new EvaluationModelController(
+    createEvaluationModelUseCase,
+    updateEvaluationModelUseCase,
+    listEvaluationModelsUseCase,
+    getEvaluationModelUseCase,
+    softDeleteEvaluationModelUseCase,
+    deactivateEvaluationModelUseCase,
+    createEvaluationModelItemUseCase,
+    updateEvaluationModelItemUseCase,
+    softDeleteEvaluationModelItemUseCase,
+    reorderEvaluationModelItemsUseCase,
+  );
+
+  // --- Grade compositions ---------------------------------------------------
+  const gradeCompositionRepository = new PrismaGradeCompositionRepository();
+
+  const getGradeCompositionByContextUseCase = new GetGradeCompositionByContextUseCase(
+    gradeCompositionRepository,
+    evaluationModelRepository,
+    classOwnershipChecker,
+    classDisciplineGateway,
+    assessmentPeriodGateway,
+  );
+  const upsertGradeCompositionUseCase = new UpsertGradeCompositionUseCase(
+    gradeCompositionRepository,
+    evaluationModelRepository,
+    classOwnershipChecker,
+    classDisciplineGateway,
+    assessmentPeriodGateway,
+  );
+  const softDeleteGradeCompositionUseCase = new SoftDeleteGradeCompositionUseCase(
+    gradeCompositionRepository,
+  );
+  const calculateGradeCompositionUseCase = new CalculateGradeCompositionUseCase(
+    gradeCompositionRepository,
+  );
+
+  const gradeCompositionController = new GradeCompositionController(
+    getGradeCompositionByContextUseCase,
+    upsertGradeCompositionUseCase,
+    softDeleteGradeCompositionUseCase,
+    calculateGradeCompositionUseCase,
+  );
+
   // --- Insights (dashboard) -------------------------------------------------
   const insightsRepository = new PrismaInsightsRepository();
 
@@ -525,6 +617,8 @@ export function createContainer() {
     attendanceController,
     activityController,
     submissionController,
+    evaluationModelController,
+    gradeCompositionController,
     dashboardController,
     reportsController,
   };

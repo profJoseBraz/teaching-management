@@ -46,6 +46,11 @@ model User {
   activityGroups       ActivityGroup[]
   submissions          Submission[]
   agendaNotes          AgendaNote[]
+  evaluationModels            EvaluationModel[]
+  evaluationModelItems        EvaluationModelItem[]
+  gradeCompositions           GradeComposition[]
+  gradeCompositionGroups      GradeCompositionGroup[]
+  gradeCompositionActivities  GradeCompositionActivity[]
 
   @@map("users")
 }
@@ -109,6 +114,7 @@ model Discipline {
   activityDisciplines  ActivityDiscipline[]
   lessons              Lesson[]
   contents             Content[]
+  gradeCompositions  GradeComposition[]
 
   @@unique([teacherId, name])
   @@index([teacherId])
@@ -154,6 +160,7 @@ model AssessmentPeriod {
   activities   Activity[]
   lessons      Lesson[]
   contents     Content[]
+  gradeCompositions GradeComposition[]
 
   @@index([teacherId])
   @@index([academicYearId])
@@ -199,6 +206,7 @@ model Class {
   contents          Content[]
   activities        Activity[]
   assessmentPeriods AssessmentPeriod[]
+  gradeCompositions GradeComposition[]
 
   @@unique([teacherId, academicYearId, courseId, name])
   @@index([teacherId])
@@ -451,6 +459,7 @@ model Activity {
   activityDisciplines  ActivityDiscipline[]
   groups               ActivityGroup[]
   submissions          Submission[]
+  gradeCompositionActivities GradeCompositionActivity[]
 
   @@index([teacherId])
   @@index([classId])
@@ -570,4 +579,147 @@ model Submission {
   @@index([studentId])
   @@index([groupId])
   @@map("submissions")
+}
+
+// ---------------------------------------------------------------------------
+// Evaluation models (reusable grade catalogs) & grade compositions
+// ---------------------------------------------------------------------------
+
+/// Catálogo reutilizável de itens avaliativos (ex.: Avaliação 1, Projeto, Recuperação).
+/// Independente de turmas. Itens de recuperação são marcados com isRecovery + recoversItemId.
+model EvaluationModel {
+  id          String    @id @default(uuid()) @db.Uuid
+  teacherId   String    @map("teacher_id") @db.Uuid
+  name        String    @db.VarChar(160)
+  description String?   @db.Text
+  isActive    Boolean   @default(true) @map("is_active")
+  sortOrder   Int       @default(0) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  teacher           User                @relation(fields: [teacherId], references: [id])
+  items             EvaluationModelItem[]
+  gradeCompositions GradeComposition[]
+
+  @@index([teacherId])
+  @@index([teacherId, isActive])
+  @@index([teacherId, sortOrder])
+  @@map("evaluation_models")
+}
+
+model EvaluationModelItem {
+  id                String    @id @default(uuid()) @db.Uuid
+  teacherId         String    @map("teacher_id") @db.Uuid
+  evaluationModelId String    @map("evaluation_model_id") @db.Uuid
+  name              String    @db.VarChar(160)
+  maxScore          Decimal   @default(100) @map("max_score") @db.Decimal(6, 2)
+  sortOrder         Int       @map("sort_order")
+  /// Quando true, este item é recuperação de outro item do mesmo modelo.
+  isRecovery        Boolean   @default(false) @map("is_recovery")
+  /// Item regular recuperado (obrigatório se isRecovery). Nota considerada = max(regular, recuperação).
+  recoversItemId    String?   @map("recovers_item_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  teacher                User                    @relation(fields: [teacherId], references: [id])
+  evaluationModel        EvaluationModel         @relation(fields: [evaluationModelId], references: [id])
+  recoversItem           EvaluationModelItem?    @relation("ItemRecovery", fields: [recoversItemId], references: [id])
+  recoveryItems          EvaluationModelItem[]   @relation("ItemRecovery")
+  gradeCompositionGroups GradeCompositionGroup[]
+
+  @@index([teacherId])
+  @@index([evaluationModelId, sortOrder])
+  @@index([recoversItemId])
+  @@map("evaluation_model_items")
+}
+
+enum GradeCompositionCalculationMethod {
+  SIMPLE_AVERAGE
+  WEIGHTED_AVERAGE
+}
+
+/// Status operacional. FINALIZED reservado para futuro congelamento/auditoria
+/// (snapshot imutável de notas) — não implementado neste momento.
+enum GradeCompositionStatus {
+  DRAFT
+  FINALIZED
+}
+
+/// Como as atividades de Turma + Disciplina + Período se agrupam nos itens do modelo.
+/// O evaluationModelId persiste a associação para reabrir a tela sem reescolher o modelo.
+model GradeComposition {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  teacherId          String                 @map("teacher_id") @db.Uuid
+  classId            String                 @map("class_id") @db.Uuid
+  disciplineId       String                 @map("discipline_id") @db.Uuid
+  assessmentPeriodId String                 @map("assessment_period_id") @db.Uuid
+  evaluationModelId  String                 @map("evaluation_model_id") @db.Uuid
+  status             GradeCompositionStatus @default(DRAFT)
+  /// Preenchido apenas quando status = FINALIZED (futuro).
+  finalizedAt        DateTime?              @map("finalized_at")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+  deletedAt          DateTime?              @map("deleted_at")
+
+  teacher          User               @relation(fields: [teacherId], references: [id])
+  class            Class              @relation(fields: [classId], references: [id])
+  discipline       Discipline         @relation(fields: [disciplineId], references: [id])
+  assessmentPeriod AssessmentPeriod   @relation(fields: [assessmentPeriodId], references: [id])
+  evaluationModel  EvaluationModel    @relation(fields: [evaluationModelId], references: [id])
+  groups           GradeCompositionGroup[]
+
+  @@unique([classId, disciplineId, assessmentPeriodId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([disciplineId])
+  @@index([assessmentPeriodId])
+  @@index([evaluationModelId])
+  @@index([teacherId, status])
+  @@map("grade_compositions")
+}
+
+/// Um grupo por item do modelo. Ordem de exibição = EvaluationModelItem.sortOrder
+/// (sem snapshot de sortOrder aqui — evita duplicação).
+model GradeCompositionGroup {
+  id                     String                            @id @default(uuid()) @db.Uuid
+  teacherId              String                            @map("teacher_id") @db.Uuid
+  gradeCompositionId     String                            @map("grade_composition_id") @db.Uuid
+  evaluationModelItemId  String                            @map("evaluation_model_item_id") @db.Uuid
+  calculationMethod      GradeCompositionCalculationMethod @default(SIMPLE_AVERAGE) @map("calculation_method")
+  createdAt              DateTime                          @default(now()) @map("created_at")
+  updatedAt              DateTime                          @updatedAt @map("updated_at")
+
+  teacher             User                      @relation(fields: [teacherId], references: [id])
+  gradeComposition    GradeComposition          @relation(fields: [gradeCompositionId], references: [id], onDelete: Cascade)
+  evaluationModelItem EvaluationModelItem       @relation(fields: [evaluationModelItemId], references: [id])
+  activities          GradeCompositionActivity[]
+
+  @@unique([gradeCompositionId, evaluationModelItemId])
+  @@index([teacherId])
+  @@index([gradeCompositionId])
+  @@index([evaluationModelItemId])
+  @@map("grade_composition_groups")
+}
+
+model GradeCompositionActivity {
+  id                       String   @id @default(uuid()) @db.Uuid
+  teacherId                String   @map("teacher_id") @db.Uuid
+  gradeCompositionGroupId  String   @map("grade_composition_group_id") @db.Uuid
+  activityId               String   @map("activity_id") @db.Uuid
+  /// Obrigatório e > 0 quando o grupo usa WEIGHTED_AVERAGE.
+  weight                   Decimal? @db.Decimal(8, 4)
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  teacher User                   @relation(fields: [teacherId], references: [id])
+  group   GradeCompositionGroup  @relation(fields: [gradeCompositionGroupId], references: [id], onDelete: Cascade)
+  activity Activity              @relation(fields: [activityId], references: [id])
+
+  @@unique([gradeCompositionGroupId, activityId])
+  @@index([teacherId])
+  @@index([gradeCompositionGroupId])
+  @@index([activityId])
+  @@map("grade_composition_activities")
 }

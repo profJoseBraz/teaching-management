@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../presentation/providers/session_providers.dart';
 import '../../presentation/screens/activities/activity_detail_screen.dart';
+import '../../presentation/screens/activities/grade_composition_screen.dart';
 import '../../presentation/screens/agenda/agenda_screen.dart';
 import '../../presentation/screens/attendance/attendance_screen.dart';
 import '../../presentation/screens/auth/login_screen.dart';
@@ -30,6 +31,8 @@ abstract class AppRoutes {
   static String classDetail(String classId) => '/classes/$classId';
   static String attendance(String classId, String lessonId) => '/classes/$classId/lessons/$lessonId/attendance';
   static String activityDetail(String classId, String activityId) => '/classes/$classId/activities/$activityId';
+  static String gradeComposition(String classId, String disciplineId) =>
+      '/classes/$classId/grade-composition/$disciplineId';
 }
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -88,6 +91,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       builder: (context, state) => ActivityDetailScreen(
                         classId: state.pathParameters['classId']!,
                         activityId: state.pathParameters['activityId']!,
+                      ),
+                    ),
+                    GoRoute(
+                      path: 'grade-composition/:disciplineId',
+                      builder: (context, state) => GradeCompositionScreen(
+                        classId: state.pathParameters['classId']!,
+                        disciplineId: state.pathParameters['disciplineId']!,
+                        disciplineName: state.uri.queryParameters['name'] ?? 'Disciplina',
                       ),
                     ),
                   ],

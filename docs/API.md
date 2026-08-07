@@ -182,6 +182,37 @@ alunos pendentes. Não há preenchimento automático como `PRESENT`.
   `GET ?disciplineId=` filtra atividades que tenham aquele vínculo ativo.
   `PATCH` aceita `disciplineIds` para substituir os vínculos.
 
+### Evaluation Models (`src/modules/evaluation-models`)
+
+Catálogo reutilizável de itens avaliativos (Config). Independente de turmas. Sem lógica especial por nome.
+
+- `GET /evaluation-models?includeInactive=` · `POST /evaluation-models`
+- `GET/PATCH/DELETE /evaluation-models/{id}` — delete = soft delete **bloqueado** se houver composição ativa
+- `POST /evaluation-models/{id}/deactivate` — `isActive=false` (preferível à exclusão quando em uso)
+- `POST /evaluation-models/{id}/items` · `PATCH/DELETE .../items/{itemId}`
+  - Item de recuperação: `{ isRecovery: true, recoversItemId }` (item regular do mesmo modelo)
+- `PUT /evaluation-models/{id}/items/reorder` — body `{ itemIds: uuid[] }`
+
+Remover item (soft delete) remove automaticamente os grupos de composição que o referenciam
+(e também recuperações vinculadas a um item regular removido).
+
+### Grade Compositions (`src/modules/grade-compositions`)
+
+Escopo: **turma + disciplina + período avaliativo**. O `evaluationModelId` fica associado ao contexto.
+
+- `GET /grade-compositions?classId=&disciplineId=&assessmentPeriodId=` — composição (ou `null`) +
+  atividades elegíveis + sync com itens do modelo
+- `PUT /grade-compositions` — upsert completo (`evaluationModelId` + grupos/atividades/pesos)
+- `DELETE /grade-compositions/{id}` — soft delete (bloqueado se `FINALIZED`)
+- `GET /grade-compositions/{id}/calculate` — notas convertidas por aluno/grupo (`null` se sem nota)
+
+Cálculo: `(score / activity.maxScore) * 100` → média (simples/ponderada) → escala para `item.maxScore` →
+arredonda **para cima** (inteiro). Sem nota em todas as atividades do grupo → `null`. Com pelo menos uma nota,
+faltantes entram como 0 na média. Para item regular com recuperação vinculada, `consideredScore` =
+`max(convertedScore, recovery.convertedScore)`. `finalAverage` (0–100) =
+`(soma consideredScore dos itens regulares / soma maxScore) * 100` (máximas → 100). Pesos obrigatórios
+e > 0 na média ponderada.
+
 ### Insights & Dashboard (`src/modules/insights`)
 
 - `GET /dashboard?academicYearId=&classId=` — `AttentionItem[]` (Insights Engine) + resumo (`summary`)

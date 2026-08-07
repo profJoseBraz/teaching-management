@@ -11,6 +11,8 @@ import { createActivityRoutes } from './modules/activities/presentation/activity
 import { createAttendanceRoutes } from './modules/attendance/presentation/attendance.routes';
 import { createClassRoutes } from './modules/classes/presentation/class.routes';
 import { createContentRoutes } from './modules/contents/presentation/content.routes';
+import { createEvaluationModelRoutes } from './modules/evaluation-models/presentation/evaluation-model.routes';
+import { createGradeCompositionRoutes } from './modules/grade-compositions/presentation/grade-composition.routes';
 import { createAuthRoutes } from './modules/identity/presentation/auth.routes';
 import { createDashboardRoutes } from './modules/insights/presentation/dashboard.routes';
 import { createLessonRoutes } from './modules/lessons/presentation/lesson.routes';
@@ -64,6 +66,12 @@ export function createApp(container: Container) {
       container.submissionController,
       container.authMiddleware,
     ),
+  );
+  api.use(
+    createEvaluationModelRoutes(container.evaluationModelController, container.authMiddleware),
+  );
+  api.use(
+    createGradeCompositionRoutes(container.gradeCompositionController, container.authMiddleware),
   );
   api.use(createDashboardRoutes(container.dashboardController, container.authMiddleware));
   api.use(createReportsRoutes(container.reportsController, container.authMiddleware));

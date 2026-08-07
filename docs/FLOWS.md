@@ -129,3 +129,38 @@ sequenceDiagram
   UC-->>API: Activity { disciplineIds }
   API-->>App: 201 { data }
 ```
+
+## Composição da nota (salvar e calcular)
+
+```mermaid
+sequenceDiagram
+  participant App as Flutter
+  participant API as Express
+  participant Get as GetGradeCompositionByContext
+  participant Upsert as UpsertGradeComposition
+  participant Calc as CalculateGradeComposition
+  participant DB as PostgreSQL
+
+  App->>API: GET /grade-compositions?classId&disciplineId&assessmentPeriodId
+  API->>Get: execute + sync grupos com modelo
+  Get->>DB: GradeComposition + Activities elegíveis
+  Get-->>API: composition?, eligibleActivities, sync
+  API-->>App: 200 { data }
+
+  App->>API: PUT /grade-compositions { evaluationModelId, groups[] }
+  API->>Upsert: validate pesos + unicidade atividade
+  Upsert->>DB: upsert composition + groups + activities
+  Upsert-->>API: GradeComposition
+  API-->>App: 200 { data }
+
+  App->>API: GET /grade-compositions/{id}/calculate
+  API->>Calc: normalize + average
+  Calc->>DB: submissions + enrollments
+  Calc-->>API: students x groups (score|null)
+  API-->>App: 200 { data }
+```
+
+Na tabela de cálculo, a coluna de um item **regular** mostra a nota real do grupo
+(média das atividades). Se a recuperação elevou a nota, o formato é `30 (59)` —
+real fora dos parênteses, considerada (`max` com recuperação) entre parênteses.
+A média final usa sempre a nota considerada dos itens regulares.

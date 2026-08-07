@@ -11,6 +11,7 @@ import '../../../domain/entities/discipline.dart';
 import '../../providers/academic_providers.dart';
 import '../../providers/session_providers.dart';
 import '../../providers/theme_providers.dart';
+import 'evaluation_models_tab.dart';
 
 final _dateFormat = DateFormat('dd/MM/yyyy');
 
@@ -29,7 +30,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -52,6 +53,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
             Tab(text: 'Cursos'),
             Tab(text: 'Disciplinas'),
             Tab(text: 'Períodos'),
+            Tab(text: 'Modelos avaliativos'),
             Tab(text: 'Preferências'),
           ],
         ),
@@ -63,6 +65,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
           _CoursesTab(),
           _DisciplinesTab(),
           _AssessmentPeriodsTab(),
+          EvaluationModelsTab(),
           _PreferencesTab(),
         ],
       ),

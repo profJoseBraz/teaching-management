@@ -12,7 +12,7 @@ export class ListActivitiesUseCase {
   async execute(
     classId: string,
     teacherId: string,
-    filters: { disciplineId?: string; tag?: string } = {},
+    filters: { disciplineId?: string; tag?: string; assessmentPeriodId?: string } = {},
   ): Promise<Activity[]> {
     const owned = await this.classOwnership.isOwnedByTeacher(classId, teacherId);
     if (!owned) {

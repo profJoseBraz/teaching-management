@@ -127,6 +127,8 @@ No MVP, turmas do mesmo ano geralmente compartilham a mesma estrutura (bimestres
 | **Contents** | Conteúdos transversais a aulas + status |
 | **Attendance** | Frequência por aula |
 | **Activities** | Atividades, grupos, entregas, notas |
+| **Evaluation Models** | Catálogo reutilizável de itens avaliativos (Config) |
+| **Grade Compositions** | Agrupamento de atividades em itens do modelo por turma/disciplina/período + cálculo |
 | **Insights** | Motor de pendências e cruzamentos (Dashboard) |
 | **Reports** | Relatórios filtráveis |
 | **Shared Kernel** | IDs, datas, paginação, erros, ownership |
@@ -199,6 +201,8 @@ Agregados definem fronteiras de consistência transacional.
 | **Lesson** | Attendances | `disciplineId` obrigatório (vinculado à turma); horário final > inicial; 1 registro de frequência por aluno/aula |
 | **Content** | LessonContents | `disciplineId` obrigatório (vinculado à turma); status OPEN/COMPLETED; conclusão só pelo professor |
 | **Activity** | ActivityDisciplines, Groups, Members, Submissions | N disciplinas via `ActivityDiscipline` (mín. 1); nota ≤ máxima; grupo só se mode=GROUP |
+| **EvaluationModel** | EvaluationModelItems | Catálogo do professor; itens com nome + maxScore + ordem; sem lógica especial por nome |
+| **GradeComposition** | Groups, CompositionActivities | Único por turma+disciplina+período; modelo associado; cálculo live a partir de submissions |
 
 **Ownership:** todo agregado de negócio carrega `teacherId`. Repositórios **sempre** filtram por ele.
 
@@ -299,6 +303,73 @@ Unique `(lessonId, studentId)`.
 - `status`: PENDING | SUBMITTED | GRADED
 - `score?`, `observations?`, `submittedAt?`, `gradedAt?`  
 Unique `(activityId, studentId)`.
+
+#### EvaluationModel (Modelo Avaliativo)
+- Catálogo reutilizável do professor (Config → Modelos avaliativos), **independente** de turmas.
+- `id`, `teacherId`, `name`, `description?`, `isActive`, `sortOrder`
+- Itens (`EvaluationModelItem`): `name`, `maxScore`, `sortOrder`
+- Recuperação é explícita: `isRecovery` + `recoversItemId` (aponta ao item regular do mesmo modelo).
+- Nota **considerada** do item regular = `max(nota regular, nota da recuperação vinculada)`.
+  A coluna de recuperação continua mostrando a nota bruta da recuperação.
+
+#### GradeComposition (Composição da Nota)
+- Escopo: **Turma + Disciplina + Período avaliativo** (unique). Nunca mistura períodos.
+- `evaluationModelId` — associa o modelo ao contexto para reabrir a tela já com o modelo escolhido.
+- `status`: `DRAFT` (padrão) | `FINALIZED` (reservado; ver §6.4).
+- `finalizedAt?` — preenchido só no futuro fechamento.
+- Grupos (`GradeCompositionGroup`): referência a `evaluationModelItemId` + `calculationMethod`
+  (`SIMPLE_AVERAGE` | `WEIGHTED_AVERAGE`). **Sem** `sortOrder` próprio — a ordem vem do item do modelo.
+- Atividades no grupo (`GradeCompositionActivity`): `activityId`, `weight?` (obrigatório se média ponderada).
+- Uma atividade entra em **no máximo um** grupo da mesma composição.
+- Cálculo **live**: normaliza `(score / activity.maxScore) * 100`, aplica média, escala para `item.maxScore`.
+- Resultado do item arredondado **sempre para cima** (teto) até inteiro — sem casas decimais.
+- Sem nota em **todas** as atividades do grupo → resultado `null` (não confundir com zero).
+- Se há pelo menos uma nota no grupo, atividades sem nota entram como **0** na média
+  (entrega faltante reduz a nota do item; zero explícito continua sendo zero avaliado).
+- Auditoria de edição: `updatedAt` (+ `teacherId` do registro). Sem `updatedByTeacherId` (app single-teacher).
+
+### 6.4 Decisões — Modelo Avaliativo & Composição da Nota
+
+#### Exclusão de modelos
+- **Hard/soft delete bloqueado** se existir qualquer `GradeComposition` ativa (`deletedAt = null`)
+  referenciando o modelo → `ConflictError`.
+- Alternativa sempre disponível: **desativar** (`isActive = false`). Modelos inativos não aparecem
+  para *novas* associações; composições já existentes continuam funcionando.
+- Remoção de **item** do modelo: soft delete do item + sincronização (abaixo).
+
+#### Sincronização quando o modelo muda (composições existentes)
+Composições **não** versionam o modelo. A sincronização roda no GET da composição e antes do cálculo:
+
+| Alteração no modelo | Efeito na composição |
+|---------------------|----------------------|
+| Novo item | Cria `GradeCompositionGroup` vazio (`SIMPLE_AVERAGE`), sem atividades |
+| Item removido (soft delete) | Remove o grupo correspondente e libera as atividades daquele grupo |
+| Reordenar itens | Automático — UI/API ordenam por `EvaluationModelItem.sortOrder` |
+| Renomear item / alterar `maxScore` | Automático via FK; cálculo usa valores atuais do item |
+| Trocar o modelo da composição | Substitui todos os grupos pelos itens do novo modelo (atividades perdidas do mapeamento anterior) |
+
+Composição com `status = FINALIZED` (futuro) **não** sincroniza nem aceita PUT — ver preparação abaixo.
+
+#### Associação do modelo ao contexto
+`GradeComposition.evaluationModelId` é a fonte da verdade do “modelo desta turma/disciplina/período”.
+Não é necessário um vínculo separado modelo↔turma.
+
+#### Preparação para fechamento/congelamento (não implementado)
+Objetivo futuro: gerar versão auditável das notas e impedir que mudanças em atividades alterem o
+resultado exibido como “fechado”.
+
+Já no schema:
+- `GradeComposition.status` (`DRAFT` | `FINALIZED`)
+- `GradeComposition.finalizedAt`
+
+Extensão prevista **sem** refatorar o cálculo live:
+1. Use case `FinalizeGradeComposition` — só se `DRAFT`; grava snapshot em tabela futura
+   `GradeCompositionFrozenScore` (aluno × grupo × score convertido, metadados).
+2. Leituras “oficiais” passam a preferir o snapshot quando `FINALIZED`.
+3. Cálculo live permanece disponível para rascunho / reabertura administrativa.
+4. PUT/sync/delete bloqueados enquanto `FINALIZED` (exceto `Reopen` explícito).
+
+Até lá, apenas `DRAFT` é usado; `FINALIZED` existe para evitar migração estrutural depois.
 
 ---
 
@@ -405,6 +476,19 @@ Unique `(activityId, studentId)`.
 - `GradeSubmission`
 - `GradeGroupShared`
 - `ListActivities` (filtro por `disciplineId`) / `GetActivityBoard` (entregas da atividade)
+- `MarkActivityEvaluated` / `ReopenActivityEvaluation`
+
+### Evaluation models
+- `CreateEvaluationModel` / `UpdateEvaluationModel` / `ListEvaluationModels` / `GetEvaluationModel`
+- `DeactivateEvaluationModel` / `SoftDeleteEvaluationModel` (bloqueado se houver composição ativa)
+- `CreateEvaluationModelItem` / `UpdateEvaluationModelItem` / `SoftDeleteEvaluationModelItem`
+- `ReorderEvaluationModelItems`
+
+### Grade compositions
+- `GetGradeCompositionByContext` (sync com itens do modelo + atividades elegíveis)
+- `UpsertGradeComposition` (valida pesos, unicidade de atividade, disciplina/período)
+- `SoftDeleteGradeComposition`
+- `CalculateGradeComposition` (normalização + média; sem nota → `null`)
 
 ### Insights & dashboard
 - `GetDashboard` — agrega pendências acionáveis do professor (ano/turma opcionais)
@@ -906,6 +990,9 @@ Cada fatia vertical deve entregar valor usável (não “só CRUD isolado” sem
 | Frequência | Attendance |
 | Atividade | Activity |
 | Entrega | Submission |
+| Modelo avaliativo | EvaluationModel |
+| Item do modelo | EvaluationModelItem |
+| Composição da nota | GradeComposition |
 | Pendência / Alerta | AttentionItem |
 
 ---

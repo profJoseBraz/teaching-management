@@ -13,6 +13,18 @@ Todas as tabelas de negócio possuem `teacher_id` (exceto junções puras como `
 |--------|-----------|
 | `agenda_notes` | Anotações do professor (várias por data); `completed` (bool, default false) |
 
+### Modelo avaliativo & composição da nota
+
+| Tabela | Descrição |
+|--------|-----------|
+| `evaluation_models` | Catálogo reutilizável do professor (`is_active`, soft delete) |
+| `evaluation_model_items` | Itens do modelo (`max_score`, `sort_order`, `is_recovery`, `recovers_item_id`) |
+| `grade_compositions` | Unique `(class_id, discipline_id, assessment_period_id)`; `evaluation_model_id`; `status` DRAFT/FINALIZED |
+| `grade_composition_groups` | Grupo por item do modelo + método de cálculo (ordem via item) |
+| `grade_composition_activities` | Atividades no grupo + `weight` opcional |
+
+Migration: `20260807120000_evaluation_models_grade_compositions`.
+
 ## Subir o banco
 
 ### Opção A — Docker Compose (recomendado)

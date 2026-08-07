@@ -23,6 +23,8 @@ export const openApiDocument = {
     { name: 'Attendance' },
     { name: 'Activities' },
     { name: 'Submissions' },
+    { name: 'Evaluation Models' },
+    { name: 'Grade Compositions' },
     { name: 'Dashboard' },
     { name: 'Reports' },
   ],
@@ -2861,6 +2863,155 @@ export const openApiDocument = {
             },
           },
           '422': { description: 'reportType inválido ou filtros malformados' },
+        },
+      },
+    },
+    '/evaluation-models': {
+      get: {
+        tags: ['Evaluation Models'],
+        summary: 'Listar modelos avaliativos',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'includeInactive',
+            in: 'query',
+            schema: { type: 'boolean' },
+            description: 'Inclui modelos com isActive=false (default false no schema; app Config usa true)',
+          },
+        ],
+        responses: { '200': { description: 'Lista de EvaluationModel com items' } },
+      },
+      post: {
+        tags: ['Evaluation Models'],
+        summary: 'Criar modelo avaliativo (com itens opcionais)',
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Modelo criado' } },
+      },
+    },
+    '/evaluation-models/{id}': {
+      get: {
+        tags: ['Evaluation Models'],
+        summary: 'Obter modelo por id',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: { '200': { description: 'Modelo' }, '404': { description: 'Não encontrado' } },
+      },
+      patch: {
+        tags: ['Evaluation Models'],
+        summary: 'Atualizar modelo (nome, descrição, isActive, sortOrder)',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: { '200': { description: 'Modelo atualizado' } },
+      },
+      delete: {
+        tags: ['Evaluation Models'],
+        summary: 'Soft delete (bloqueado se houver composição ativa)',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          '204': { description: 'Removido' },
+          '409': { description: 'Modelo em uso — desative em vez de excluir' },
+        },
+      },
+    },
+    '/evaluation-models/{id}/deactivate': {
+      post: {
+        tags: ['Evaluation Models'],
+        summary: 'Desativar modelo (isActive=false)',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: { '200': { description: 'Modelo desativado' } },
+      },
+    },
+    '/evaluation-models/{id}/items': {
+      post: {
+        tags: ['Evaluation Models'],
+        summary: 'Adicionar item ao modelo',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: { '201': { description: 'Item criado' } },
+      },
+    },
+    '/evaluation-models/{id}/items/{itemId}': {
+      patch: {
+        tags: ['Evaluation Models'],
+        summary: 'Atualizar item',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'itemId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        responses: { '200': { description: 'Item atualizado' } },
+      },
+      delete: {
+        tags: ['Evaluation Models'],
+        summary: 'Soft delete do item (+ sync remove grupos nas composições)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'itemId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        responses: { '204': { description: 'Item removido' } },
+      },
+    },
+    '/evaluation-models/{id}/items/reorder': {
+      put: {
+        tags: ['Evaluation Models'],
+        summary: 'Reordenar itens do modelo',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: { '200': { description: 'Modelo com itens reordenados' } },
+      },
+    },
+    '/grade-compositions': {
+      get: {
+        tags: ['Grade Compositions'],
+        summary: 'Obter composição por turma + disciplina + período (com sync)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'classId', in: 'query', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'disciplineId', in: 'query', required: true, schema: { type: 'string', format: 'uuid' } },
+          {
+            name: 'assessmentPeriodId',
+            in: 'query',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ],
+        responses: {
+          '200': {
+            description:
+              '{ composition, eligibleActivities, sync: { groupsAdded, groupsRemoved } | null }',
+          },
+        },
+      },
+      put: {
+        tags: ['Grade Compositions'],
+        summary: 'Upsert da composição (modelo + grupos + atividades)',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Composição salva' }, '422': { description: 'Validação' } },
+      },
+    },
+    '/grade-compositions/{id}': {
+      delete: {
+        tags: ['Grade Compositions'],
+        summary: 'Soft delete da composição',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: { '204': { description: 'Removida' }, '409': { description: 'Composição FINALIZED' } },
+      },
+    },
+    '/grade-compositions/{id}/calculate': {
+      get: {
+        tags: ['Grade Compositions'],
+        summary: 'Calcular notas convertidas (live)',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          '200': {
+            description:
+              'students[] com convertedScore (number|null) por item; warnings.emptyGroups / ungroupedActivityCount',
+          },
         },
       },
     },

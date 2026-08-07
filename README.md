@@ -102,6 +102,7 @@ Guia completo: [`frontend/README.md`](frontend/README.md)
 - Agenda (anotações distintas, agrupadas por data)
 - Lessons + Contents + Attendance
 - Activities + Submissions + Groups + grading (descrição Markdown, tag, N disciplinas por atividade)
+- Evaluation Models (catálogo) + Grade Compositions (turma/disciplina/período)
 - Insights Engine + Dashboard
 - Reports (P0 + P1)
 
@@ -109,7 +110,8 @@ Guia completo: [`frontend/README.md`](frontend/README.md)
 - Login + shell responsivo (AppBar: ano letivo + período avaliativo)
 - Dashboard com AttentionItems
 - Turmas (hub: aulas, frequência, conteúdos, atividades e alunos filtrados pelo período selecionado)
-- Alunos, Agenda (anotações), Relatórios, Configurações (CRUD acadêmico + tema)
+- Composição da Nota (por disciplina + período; modelos em Config)
+- Alunos, Agenda (anotações), Relatórios, Configurações (CRUD acadêmico + modelos avaliativos + tema)
 
 ## Arquitetura
 

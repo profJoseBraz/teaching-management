@@ -60,6 +60,10 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
     final query = _query;
     final activitiesAsync = ref.watch(activitiesListProvider(query));
     final disciplineNames = {for (final d in widget.disciplines) d.id: d.name};
+    // Com uma única disciplina vinculada, usa-a mesmo sem filtro no topo
+    // (a barra de chips só aparece quando há 2+ disciplinas).
+    final effectiveDisciplineId = widget.disciplineFilter ??
+        (widget.disciplines.length == 1 ? widget.disciplines.first.id : null);
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
@@ -70,30 +74,62 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
         icon: const Icon(Icons.add_rounded),
         label: const Text('Nova atividade'),
       ),
-      body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(activitiesListProvider(query)),
-        child: AsyncValueWidget<List<Activity>>(
-          value: activitiesAsync,
-          onRetry: () => ref.invalidate(activitiesListProvider(query)),
-          isEmpty: (list) => list.isEmpty,
-          emptyIcon: Icons.assignment_outlined,
-          emptyMessage: 'Nenhuma atividade cadastrada neste período.',
-          data: (activities) {
-            final availableTags = _tagsFrom(activities);
-            final filtered = _tagFilter == null
-                ? activities
-                : activities
-                    .where(
-                      (a) =>
-                          a.tag != null &&
-                          a.tag!.toLowerCase() == _tagFilter!.toLowerCase(),
-                    )
-                    .toList();
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: OutlinedButton.icon(
+              onPressed: () {
+                if (effectiveDisciplineId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        widget.disciplines.isEmpty
+                            ? 'Vincule uma disciplina à turma para montar a composição.'
+                            : 'Selecione uma disciplina específica no topo da turma para montar a composição.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                final discipline = widget.disciplines.firstWhere(
+                  (d) => d.id == effectiveDisciplineId,
+                );
+                context.push(
+                  '${AppRoutes.gradeComposition(widget.classId, discipline.id)}'
+                  '?name=${Uri.encodeQueryComponent(discipline.name)}',
+                );
+              },
+              icon: const Icon(Icons.calculate_outlined),
+              label: const Text('Composição da Nota'),
+            ),
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async => ref.invalidate(activitiesListProvider(query)),
+              child: AsyncValueWidget<List<Activity>>(
+                value: activitiesAsync,
+                onRetry: () => ref.invalidate(activitiesListProvider(query)),
+                isEmpty: (list) => list.isEmpty,
+                emptyIcon: Icons.assignment_outlined,
+                emptyMessage: 'Nenhuma atividade cadastrada neste período.',
+                data: (activities) {
+                  final availableTags = _tagsFrom(activities);
+                  final filtered = _tagFilter == null
+                      ? activities
+                      : activities
+                          .where(
+                            (a) =>
+                                a.tag != null &&
+                                a.tag!.toLowerCase() == _tagFilter!.toLowerCase(),
+                          )
+                          .toList();
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (availableTags.isNotEmpty)
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (availableTags.isNotEmpty)
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -199,7 +235,10 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
               ],
             );
           },
-        ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

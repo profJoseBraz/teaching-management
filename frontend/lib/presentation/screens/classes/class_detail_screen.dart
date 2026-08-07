@@ -76,8 +76,16 @@ class _ClassDetailScreenState extends ConsumerState<ClassDetailScreen> with Sing
     final schoolClass = classAsync.valueOrNull;
     final disciplines = schoolClass?.disciplines ?? const <ClassDisciplineRef>[];
 
-    // Se a disciplina selecionada foi desvinculada da turma, volta para "Todas".
-    if (_selectedDisciplineId != null && disciplines.every((d) => d.id != _selectedDisciplineId)) {
+    // Mantém o filtro coerente com as disciplinas vinculadas:
+    // - 1 disciplina → seleciona automaticamente (a barra só aparece com 2+);
+    // - disciplina selecionada foi desvinculada → volta para "Todas".
+    final singleDisciplineId = disciplines.length == 1 ? disciplines.first.id : null;
+    if (singleDisciplineId != null && _selectedDisciplineId != singleDisciplineId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _selectedDisciplineId = singleDisciplineId);
+      });
+    } else if (_selectedDisciplineId != null &&
+        disciplines.every((d) => d.id != _selectedDisciplineId)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => _selectedDisciplineId = null);
       });
@@ -402,8 +410,10 @@ class _EditClassDialogState extends State<_EditClassDialog> {
   }
 }
 
-/// Barra de chips exibida quando a turma tem mais de uma disciplina
-/// vinculada, permitindo restringir Aulas/Conteúdos/Atividades a uma delas.
+/// Barra de chips exibida quando a turma tem **mais de uma** disciplina
+/// vinculada. Com uma só, a disciplina é selecionada automaticamente no hub
+/// (sem barra) para não bloquear fluxos que exigem disciplina específica
+/// (ex.: composição da nota).
 class _DisciplineFilterBar extends StatelessWidget {
   const _DisciplineFilterBar({
     required this.disciplines,
